@@ -27,6 +27,9 @@ class DegreeTimePoint:
     time_right: datetime
     label: str
     is_major: bool
+    price_level: float | None = None
+    price_left: float | None = None
+    price_right: float | None = None
 
 
 @dataclass(frozen=True)
@@ -45,6 +48,7 @@ class MidpointAnalysisResult:
     price_equilibrium: float | None = None
     price_high: float | None = None
     price_low: float | None = None
+    price_range: float | None = None
 
 
 STANDARD_DEGREES = [
@@ -97,7 +101,7 @@ MIDPOINT_METHODS = {
     },
     "PRICE_50": {
         "name": "Method 6: Gann 50% Price Equilibrium & Harmonic Octaves",
-        "desc": "Calculates the exact 50% midpoint between High and Low, projecting Square of Nine harmonic vibration rungs.",
+        "desc": "Calculates the exact 50% midpoint between High and Low, projecting harmonic support/resistance price levels & time squaring.",
         "requires_price": True,
         "default_market": "ALL",
     },
@@ -118,8 +122,13 @@ def calculate_mumbai_solar_noon(d: date) -> datetime:
     return noon_base + timedelta(minutes=total_offset)
 
 
-def compute_degree_points(midpoint: datetime, scale_min_per_deg: float,
-                          custom_degrees: list[float] | None = None) -> list[DegreeTimePoint]:
+def compute_degree_points(
+    midpoint: datetime,
+    scale_min_per_deg: float,
+    custom_degrees: list[float] | None = None,
+    price_mid: float | None = None,
+    price_range: float | None = None,
+) -> list[DegreeTimePoint]:
     degrees_map: dict[float, tuple[str, bool]] = {deg: (lbl, maj) for deg, lbl, maj in STANDARD_DEGREES}
     
     if custom_degrees:
@@ -135,12 +144,25 @@ def compute_degree_points(midpoint: datetime, scale_min_per_deg: float,
         offset = timedelta(minutes=deg * scale_min_per_deg)
         t_left = midpoint - offset
         t_right = midpoint + offset
+        
+        # Calculate price levels if in Price Equilibrium mode
+        p_left = None
+        p_right = None
+        if price_mid is not None and price_range is not None:
+            # In Gann octaves, 180° = 50% of the range from midpoint
+            # delta = (deg / 180.0) * (price_range / 2.0)
+            delta = (deg / 180.0) * (price_range / 2.0) if price_range > 0 else (deg * 0.5)
+            p_left = price_mid - delta
+            p_right = price_mid + delta
+
         results.append(DegreeTimePoint(
             degree=deg,
             time_left=t_left,
             time_right=t_right,
             label=lbl,
-            is_major=maj
+            is_major=maj,
+            price_left=p_left,
+            price_right=p_right,
         ))
     return results
 
@@ -149,29 +171,29 @@ def analyze_midpoints_v2(
     d: date,
     method_key: str,
     custom_time_val: time | None = None,
-    time_scale_mode: str = "SESSION_SCALE",  # "SESSION_SCALE", "SOLAR_4MIN", "OPENING_10SEC"
+    time_scale_mode: str = "SESSION_SCALE",
     price_high: float | None = None,
     price_low: float | None = None,
     custom_degrees: list[float] | None = None,
 ) -> MidpointAnalysisResult:
-    """Analyze midpoint using the explicitly chosen Gann calculation method."""
     method_info = MIDPOINT_METHODS.get(method_key, MIDPOINT_METHODS["NSE_SESSION"])
     method_name = method_info["name"]
     price_eq = None
+    p_range = None
 
     if method_key == "NSE_SESSION":
         dt_open = datetime.combine(d, NSE_OPEN)
         dt_close = datetime.combine(d, NSE_CLOSE)
-        total_mins = (dt_close - dt_open).total_seconds() / 60.0  # 375 mins
-        midpoint = dt_open + timedelta(minutes=total_mins / 2.0)    # 12:22:30 IST
-        scale_min = total_mins / 360.0                             # 1.0416667 min/deg
+        total_mins = (dt_close - dt_open).total_seconds() / 60.0
+        midpoint = dt_open + timedelta(minutes=total_mins / 2.0)
+        scale_min = total_mins / 360.0
         desc = "NSE/BSE 50% Session Time Midpoint: 12:22:30 IST (375 min = 360°, 1° = 1.0417 min)"
 
     elif method_key == "MCX_SESSION":
         dt_open = datetime.combine(d, MCX_OPEN)
         close_t = MCX_CLOSE_DST if us_dst_active(d) else MCX_CLOSE_STD
         dt_close = datetime.combine(d, close_t)
-        total_mins = (dt_close - dt_open).total_seconds() / 60.0  # 870 or 895 mins
+        total_mins = (dt_close - dt_open).total_seconds() / 60.0
         midpoint = dt_open + timedelta(minutes=total_mins / 2.0)
         scale_min = total_mins / 360.0
         dst_str = "US DST Active (Closes 23:30)" if us_dst_active(d) else "US Standard (Closes 23:55)"
@@ -189,8 +211,8 @@ def analyze_midpoints_v2(
         dt_open = datetime.combine(d, NSE_OPEN)
         dt_first_hr = dt_open + timedelta(minutes=60)
         total_mins = 60.0
-        midpoint = dt_open + timedelta(minutes=30.0)  # 09:45:00 IST
-        scale_min = 60.0 / 360.0                      # 1/6 min = 10 seconds per degree
+        midpoint = dt_open + timedelta(minutes=30.0)
+        scale_min = 60.0 / 360.0
         dt_close = dt_first_hr
         desc = f"Gann Opening First-Hour Midpoint (09:15 to 10:15 IST): {midpoint.strftime('%H:%M:%S')} IST (60 min = 360°, 1° = 10 sec)"
 
@@ -216,22 +238,32 @@ def analyze_midpoints_v2(
         desc = f"Custom Anchor Midpoint: {midpoint.strftime('%H:%M:%S')} IST ({scale_desc})"
 
     elif method_key == "PRICE_50":
-        hi = price_high if price_high and price_high > 0 else 24400.0
-        lo = price_low if price_low and price_low > 0 else 24200.0
+        hi = price_high if price_high is not None and price_high > 0 else 24400.0
+        lo = price_low if price_low is not None and price_low > 0 else 24200.0
         if lo > hi:
             hi, lo = lo, hi
         price_eq = (hi + lo) / 2.0
+        p_range = hi - lo
         dt_open = datetime.combine(d, NSE_OPEN)
         dt_close = datetime.combine(d, NSE_CLOSE)
         total_mins = 375.0
-        midpoint = dt_open + timedelta(minutes=total_mins / 2.0)  # aligned to session midpoint
+        midpoint = dt_open + timedelta(minutes=total_mins / 2.0)  # Session midpoint 12:22:30 IST
         scale_min = total_mins / 360.0
-        desc = f"Gann 50% Price Equilibrium: High {hi:.2f} | Low {lo:.2f} | Equilibrium Midpoint = {price_eq:.2f} pts"
+        desc = (
+            f"Gann 50% Price Equilibrium: High {hi:.2f} | Low {lo:.2f} | "
+            f"Equilibrium Midpoint = {price_eq:.2f} pts (Range: {p_range:.2f} pts)"
+        )
 
     else:
         raise ValueError(f"Unknown method key: {method_key}")
 
-    pts = compute_degree_points(midpoint, scale_min, custom_degrees)
+    pts = compute_degree_points(
+        midpoint=midpoint,
+        scale_min_per_deg=scale_min,
+        custom_degrees=custom_degrees,
+        price_mid=price_eq,
+        price_range=p_range,
+    )
 
     return MidpointAnalysisResult(
         method_key=method_key,
@@ -248,4 +280,5 @@ def analyze_midpoints_v2(
         price_equilibrium=price_eq,
         price_high=price_high,
         price_low=price_low,
+        price_range=p_range,
     )

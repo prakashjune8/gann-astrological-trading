@@ -17,10 +17,12 @@ from gann_timer.midpoint_engine import (
 )
 
 COLUMNS = [
-    ("degree", "Degree (°)", 90),
-    ("left", "Left Time (-θ Past/Ascending)", 210),
-    ("right", "Right Time (+θ Future/Descending)", 210),
-    ("desc", "Gann Harmonic Significance", 330),
+    ("degree", "Degree (°)", 85),
+    ("left", "Left Time (-θ Past)", 165),
+    ("right", "Right Time (+θ Future)", 165),
+    ("price_support", "Support Level (Left)", 155),
+    ("price_resist", "Resistance Level (Right)", 165),
+    ("desc", "Gann Harmonic Significance", 320),
     ("category", "Importance", 120),
 ]
 
@@ -31,8 +33,8 @@ class GannMidpointApp(ctk.CTk):
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
         self.title("Gann Midpoint & 360° Time Harmonics – Indian Markets")
-        self.geometry("1220x820")
-        self.minsize(1050, 680)
+        self.geometry("1300x840")
+        self.minsize(1100, 680)
 
         self.current_result: MidpointAnalysisResult | None = None
 
@@ -42,7 +44,7 @@ class GannMidpointApp(ctk.CTk):
         self._build_results_view()
         self._calculate()
 
-    def _setup_treeview_styles(self) -> None:
+    def _setup_treeview_styles() -> None:
         style = ttk.Style(self)
         style.theme_use("clam")
         style.configure(
@@ -79,7 +81,7 @@ class GannMidpointApp(ctk.CTk):
 
         ctk.CTkLabel(
             title_box,
-            text="Selectable Midpoint Calculation Methods • NSE • BSE • MCX • Astronomical Solar Noon",
+            text="Selectable Midpoint Calculation Methods • NSE • BSE • MCX • Astronomical Solar Noon • 50% Price Equilibrium",
             font=ctk.CTkFont(size=12),
             text_color="gray70",
         ).pack(anchor="w")
@@ -115,10 +117,11 @@ class GannMidpointApp(ctk.CTk):
         ctk.CTkButton(r1, text="Today", width=60, command=self._set_today, fg_color="#3a3f47").pack(side="left")
 
         # Row 2: Dynamic Contextual Parameters (Custom Time or Price)
-        self.r2 = ctk.CTkFrame(ctrl, fg_color="transparent")
+        self.r2 = ctk.CTkFrame(ctrl, fg_color="#1a1d22", corner_radius=6)
         self.r2.pack(fill="x", padx=12, pady=(4, 6))
 
-        self.custom_time_label = ctk.CTkLabel(self.r2, text="Custom Anchor Time (HH:MM):")
+        # Custom Time elements
+        self.custom_time_label = ctk.CTkLabel(self.r2, text="Custom Anchor Time (HH:MM):", font=ctk.CTkFont(weight="bold"))
         self.custom_time_entry = ctk.CTkEntry(self.r2, width=90, placeholder_text="12:00")
         self.custom_time_entry.insert(0, "12:00")
 
@@ -129,13 +132,29 @@ class GannMidpointApp(ctk.CTk):
             width=210,
         )
 
-        self.price_high_label = ctk.CTkLabel(self.r2, text="Day High:")
-        self.price_high_entry = ctk.CTkEntry(self.r2, width=95, placeholder_text="24400")
-        self.price_high_entry.insert(0, "24400")
+        # Price Equilibrium elements (Method 6)
+        self.price_banner = ctk.CTkLabel(
+            self.r2,
+            text="💰 Enter Intraday Price Bounds:",
+            font=ctk.CTkFont(weight="bold"),
+            text_color="#98c379",
+        )
+        self.price_high_label = ctk.CTkLabel(self.r2, text="Day High Price:")
+        self.price_high_entry = ctk.CTkEntry(self.r2, width=110, placeholder_text="e.g. 24450")
+        self.price_high_entry.insert(0, "24450")
 
-        self.price_low_label = ctk.CTkLabel(self.r2, text="Day Low:")
-        self.price_low_entry = ctk.CTkEntry(self.r2, width=95, placeholder_text="24200")
-        self.price_low_entry.insert(0, "24200")
+        self.price_low_label = ctk.CTkLabel(self.r2, text="Day Low Price:")
+        self.price_low_entry = ctk.CTkEntry(self.r2, width=110, placeholder_text="e.g. 24250")
+        self.price_low_entry.insert(0, "24250")
+
+        # Quick apply button for price changes
+        self.price_apply_btn = ctk.CTkButton(
+            self.r2,
+            text="Recalculate Price Octaves",
+            command=self._calculate,
+            width=170,
+            fg_color="#2b7a4b",
+        )
 
         self._update_contextual_inputs()
 
@@ -169,21 +188,28 @@ class GannMidpointApp(ctk.CTk):
         # Hide all conditional inputs first
         for widget in [
             self.custom_time_label, self.custom_time_entry, self.scale_label, self.scale_combo,
-            self.price_high_label, self.price_high_entry, self.price_low_label, self.price_low_entry
+            self.price_banner, self.price_high_label, self.price_high_entry,
+            self.price_low_label, self.price_low_entry, self.price_apply_btn
         ]:
             widget.pack_forget()
 
         key = self._get_selected_method_key()
         if key == "CUSTOM_TIME":
-            self.custom_time_label.pack(side="left", padx=(0, 6))
-            self.custom_time_entry.pack(side="left", padx=(0, 16))
-            self.scale_label.pack(side="left", padx=(0, 6))
-            self.scale_combo.pack(side="left", padx=(0, 16))
+            self.r2.pack(fill="x", padx=12, pady=(4, 6))
+            self.custom_time_label.pack(side="left", padx=(10, 6), pady=6)
+            self.custom_time_entry.pack(side="left", padx=(0, 16), pady=6)
+            self.scale_label.pack(side="left", padx=(0, 6), pady=6)
+            self.scale_combo.pack(side="left", padx=(0, 16), pady=6)
         elif key == "PRICE_50":
-            self.price_high_label.pack(side="left", padx=(0, 6))
-            self.price_high_entry.pack(side="left", padx=(0, 14))
-            self.price_low_label.pack(side="left", padx=(0, 6))
-            self.price_low_entry.pack(side="left", padx=(0, 16))
+            self.r2.pack(fill="x", padx=12, pady=(4, 6))
+            self.price_banner.pack(side="left", padx=(10, 10), pady=6)
+            self.price_high_label.pack(side="left", padx=(0, 6), pady=6)
+            self.price_high_entry.pack(side="left", padx=(0, 14), pady=6)
+            self.price_low_label.pack(side="left", padx=(0, 6), pady=6)
+            self.price_low_entry.pack(side="left", padx=(0, 16), pady=6)
+            self.price_apply_btn.pack(side="left", padx=(0, 10), pady=6)
+        else:
+            self.r2.pack_forget()
 
     def _build_results_view(self) -> None:
         container = ctk.CTkFrame(self, fg_color="transparent")
@@ -298,10 +324,12 @@ class GannMidpointApp(ctk.CTk):
 
         elif method_key == "PRICE_50":
             try:
-                hi_val = float(self.price_high_entry.get().strip())
-                lo_val = float(self.price_low_entry.get().strip())
+                hi_str = self.price_high_entry.get().strip().replace(",", "")
+                lo_str = self.price_low_entry.get().strip().replace(",", "")
+                hi_val = float(hi_str)
+                lo_val = float(lo_str)
             except Exception:
-                hi_val, lo_val = 24400.0, 24200.0
+                hi_val, lo_val = 24450.0, 24250.0
 
         result = analyze_midpoints_v2(
             d=d,
@@ -325,7 +353,11 @@ class GannMidpointApp(ctk.CTk):
         )
 
         if result.price_equilibrium is not None:
-            metrics_text += f"\n50% Price Equilibrium: {result.price_equilibrium:.2f} pts  |  Day Range: {(result.price_high or 0) - (result.price_low or 0):.2f} pts"
+            metrics_text += (
+                f"\n⚖️ 50% PRICE EQUILIBRIUM: {result.price_equilibrium:.2f} pts  |  "
+                f"Range: {result.price_range:.2f} pts (High {result.price_high:.2f} / Low {result.price_low:.2f})  |  "
+                f"Scale: 1° = {(result.price_range or 0) / 360.0:.2f} pts per degree"
+            )
 
         if method_key == "SOLAR_NOON":
             doy = d.timetuple().tm_yday
@@ -343,26 +375,33 @@ class GannMidpointApp(ctk.CTk):
             left_str = pt.time_left.strftime("%H:%M:%S IST")
             right_str = pt.time_right.strftime("%H:%M:%S IST")
 
+            # Format price columns
             if pt.degree == 0.0:
                 deg_str = "0° (MID)"
                 left_str = f"★ {mid_str}"
                 right_str = f"★ {mid_str}"
                 importance = "MIDPOINT OF DAY"
                 tag = "midpoint"
-            elif pt.degree in custom_set:
-                importance = "Custom Asked"
-                tag = "custom"
-            elif pt.is_major:
-                importance = "Major Harmonic"
-                tag = "major"
+                p_sup_str = f"★ {result.price_equilibrium:.2f} (50%)" if result.price_equilibrium else "–"
+                p_res_str = f"★ {result.price_equilibrium:.2f} (50%)" if result.price_equilibrium else "–"
             else:
-                importance = "Sub-Harmonic"
-                tag = "minor"
+                if pt.degree in custom_set:
+                    importance = "Custom Asked"
+                    tag = "custom"
+                elif pt.is_major:
+                    importance = "Major Harmonic"
+                    tag = "major"
+                else:
+                    importance = "Sub-Harmonic"
+                    tag = "minor"
+
+                p_sup_str = f"{pt.price_left:.2f}" if pt.price_left is not None else "–"
+                p_res_str = f"{pt.price_right:.2f}" if pt.price_right is not None else "–"
 
             self.tree.insert(
                 "",
                 "end",
-                values=(deg_str, left_str, right_str, pt.label, importance),
+                values=(deg_str, left_str, right_str, p_sup_str, p_res_str, pt.label, importance),
                 tags=(tag,),
             )
 
@@ -391,8 +430,11 @@ class GannMidpointApp(ctk.CTk):
             w.writerow(["Seconds Per Degree", f"{self.current_result.seconds_per_degree:.2f}"])
             if self.current_result.price_equilibrium is not None:
                 w.writerow(["Price Equilibrium (50%)", f"{self.current_result.price_equilibrium:.2f}"])
+                w.writerow(["Price Range", f"{self.current_result.price_range:.2f}"])
+                w.writerow(["Price High", f"{self.current_result.price_high:.2f}"])
+                w.writerow(["Price Low", f"{self.current_result.price_low:.2f}"])
             w.writerow([])
-            w.writerow(["Degree", "Left Time (-deg / Morning)", "Right Time (+deg / Afternoon)", "Significance", "Importance"])
+            w.writerow(["Degree", "Left Time (-deg / Morning)", "Right Time (+deg / Afternoon)", "Support Level (Left)", "Resistance Level (Right)", "Significance", "Importance"])
 
             for item_id in self.tree.get_children():
                 w.writerow(self.tree.item(item_id, "values"))

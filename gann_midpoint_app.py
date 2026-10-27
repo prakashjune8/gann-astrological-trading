@@ -173,6 +173,7 @@ class GannMidpointApp(ctk.CTk):
             self.tree.heading(col_id, text=col_name)
             self.tree.column(col_id, width=width, minwidth=60, anchor="w")
 
+        self.tree.tag_configure("midpoint", foreground="#e06c75", font=("Segoe UI Semibold", 11))
         self.tree.tag_configure("major", foreground="#98c379")
         self.tree.tag_configure("minor", foreground="#abb2bf")
         self.tree.tag_configure("custom", foreground="#e5c07b")
@@ -259,7 +260,13 @@ class GannMidpointApp(ctk.CTk):
             left_str = pt.time_left.strftime("%H:%M:%S IST")
             right_str = pt.time_right.strftime("%H:%M:%S IST")
             
-            if pt.degree in custom_set:
+            if pt.degree == 0.0:
+                deg_str = "0° (MID)"
+                left_str = f"★ {mid_str}"
+                right_str = f"★ {mid_str}"
+                importance = "MIDPOINT OF DAY"
+                tag = "midpoint"
+            elif pt.degree in custom_set:
                 importance = "Custom Asked"
                 tag = "custom"
             elif pt.is_major:

@@ -44,6 +44,7 @@ class MidpointAnalysisResult:
 
 
 STANDARD_DEGREES = [
+    (0.0, "0° Center Axis - THE MIDPOINT OF THE DAY (Equilibrium)", True),
     (15.0, "1/24 Circle - Minor Sub-Harmonic", False),
     (30.0, "1/12 Circle - Semi-Sextile (30° Sign division)", True),
     (45.0, "1/8 Circle - Octile / Semi-Square", True),

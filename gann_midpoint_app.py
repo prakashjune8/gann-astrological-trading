@@ -44,7 +44,7 @@ class GannMidpointApp(ctk.CTk):
         self._build_results_view()
         self._calculate()
 
-    def _setup_treeview_styles() -> None:
+    def _setup_treeview_styles(self) -> None:
         style = ttk.Style(self)
         style.theme_use("clam")
         style.configure(

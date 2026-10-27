@@ -1,0 +1,5 @@
+{
+  "_note": "User-maintained exchange holidays (YYYY-MM-DD). Fill from the official NSE / MCX holiday circulars each year. Weekends are handled automatically. Gold/silver sessions are not tracked.",
+  "NSE": [],
+  "MCX": []
+}

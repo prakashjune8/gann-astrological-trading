@@ -1,91 +1,100 @@
 ---
 name: Skill_3_Gann_Market_Harmonics
-description: W. D. Gann price-time squaring and planetary aspect methodology - map conjunctions, squares, trines, oppositions, ingresses, stations, and bidirectional Price-to-Longitude and Longitude-to-Price conversions (Square of Nine, Natural Circle, Scale Octaves). Use when generating Gann timing triggers or harmonic price levels.
+description: W. D. Gann price-time squaring and planetary aspect methodology - map conjunctions, squares, trines, oppositions, ingresses, stations, bidirectional Price-to-Longitude and Longitude-to-Price conversions (Square of Nine, Natural Circle, Scale Octaves), and intraday midpoint calculations (50% price equilibrium, session time midpoint, and true solar noon). Use when generating Gann timing triggers or harmonic price levels.
 ---
 
-# Skill 3 – Gann Market Harmonics & Celestial Price Conversion
+# Skill 3 – Gann Market Harmonics, Celestial Conversions & Daily Midpoints
 
-## 1. Bidirectional Price ↔ Longitude Conversion Principles
+## 1. The Gann Midpoint of the Day Methodologies
 
-W. D. Gann established that price and time are interchangeable dimensions of the same vibration. To harmonize price with planetary movements, three core mathematical conversion systems are utilized:
+In W. D. Gann's trading philosophy, the **50% mark (the Midpoint)** is the absolute gravity center and the most critical line of balance. Gann stated: 
+> *"The 50% point or half-way point of any movement, range, or cycle is the strongest resistance and support point."*
+
+When analyzing the **Midpoint of the Day**, Gann applied this concept across three distinct dimensions:
+1. **Intraday Price Midpoint (50% Price Equilibrium)**
+2. **Trading Session Time Midpoint (50% Temporal Division)**
+3. **Astronomical True Solar Noon (Celestial Midpoint of the Day)**
 
 ---
+
+### A. Intraday Price Midpoint (The 50% Equilibrium Level)
+
+The price midpoint separates bullish territory from bearish territory for the current trading day.
+
+#### 1. Daily Range Midpoint:
+$$\text{Midpoint}_{\text{Day}} = \frac{\text{High}_{\text{Day}} + \text{Low}_{\text{Day}}}{2}$$
+
+- **Trend Filter Rule:**
+  - $\text{Price} > \text{Midpoint}$: Bullish bias $\to$ favor long entries toward $\frac{\text{High} + \text{Midpoint}}{2}$ (75% quartile) and extension targets.
+  - $\text{Price} < \text{Midpoint}$: Bearish bias $\to$ favor short entries toward $\frac{\text{Low} + \text{Midpoint}}{2}$ (25% quartile) and lower extensions.
+
+#### 2. Opening Range / First-Hour Midpoint:
+Gann placed significant emphasis on the range established during the initial market balance (first 45–60 minutes):
+$$\text{Midpoint}_{\text{Opening}} = \frac{\text{High}_{\text{First Hour}} + \text{Low}_{\text{First Hour}}}{2}$$
+A retest of this 50% opening equilibrium between 11:30 AM and 1:30 PM IST often marks the day's trend continuation or reversal trigger.
+
+---
+
+### B. Trading Session Time Midpoint (50% Temporal Division)
+
+Just as price has a 50% equilibrium, the **duration of the trading day** has an exact 50% temporal midpoint where accumulated morning momentum exhausts and afternoon counter-trend or acceleration commences.
+
+#### 1. Indian Equity Session (NSE / BSE):
+- **Trading Hours:** 09:15 to 15:30 IST (Total duration: 6 hours 15 minutes = 375 minutes).
+- **Exact Session Midpoint:**
+  $$T_{\text{NSE Midpoint}} = 09:15 + \frac{375\text{ mins}}{2} = 09:15 + 187.5\text{ mins} = \mathbf{12:22:30\text{ IST}}$$
+  *(Practical window: 12:20 PM to 12:25 PM IST).*
+- **Gann Rule:** If the market forms an extreme high or low within $\pm 15$ minutes of **12:22 IST**, expect a trend reversal into the close.
+
+#### 2. MCX Commodity Session:
+- **During US Daylight Saving Time (US DST):**
+  - Session: 09:00 to 23:30 IST (14 hours 30 mins = 870 minutes).
+  - Exact Session Midpoint: $09:00 + 435\text{ mins} = \mathbf{16:15\text{ IST}}$ (4:15 PM IST).
+- **During US Standard Time (US Winter):**
+  - Session: 09:00 to 23:55 IST (14 hours 55 mins = 895 minutes).
+  - Exact Session Midpoint: $09:00 + 447.5\text{ mins} = \mathbf{16:27:30\text{ IST}}$ (4:27 PM IST).
+
+---
+
+### C. Astronomical True Solar Noon (Celestial Midpoint of the Day)
+
+Gann distinguished between "clock time" (man-made time zones) and "Natural Time" (solar progression). The true celestial midpoint of the day is **Local Apparent Noon (True Solar Noon)**, the exact second when the Sun transits the local celestial meridian (highest altitude / zero hour-angle).
+
+#### Mathematical Calculation:
+For Indian exchanges (Mumbai coordinates: Latitude $18.925^\circ\text{ N}$, Longitude $72.825^\circ\text{ E}$):
+$$\text{Solar Noon (IST)} = 12:00 + \frac{82.5^\circ - \text{Longitude}_{\text{local}}}{15^\circ/\text{hour}} - \frac{\text{EoT}}{60}$$
+- **IST Reference Meridian:** $82.5^\circ\text{ E}$ ($UTC+05:30$).
+- **Mumbai Meridian Offset:** $(82.5^\circ - 72.825^\circ) \times 4\text{ mins/degree} \approx \mathbf{+38.7\text{ minutes}}$ (lag behind IST).
+- **Equation of Time ($\text{EoT}$):** Cyclical astronomical deviation (-14 mins to +16 mins) due to Earth’s orbital eccentricity and axial obliquity.
+- **True Solar Noon in Mumbai:** Fluctuates between **12:24 PM IST** and **12:54 PM IST** across the calendar year.
+
+---
+
+### D. Gann Price-Time Midpoint Confluence (The Master Setup)
+
+The highest probability trading setup occurs when **Price Midpoint** and **Time Midpoint** coincide:
+$$\text{If } \text{Price}(t) \approx \text{Midpoint}_{\text{Price}} \quad \text{at } \quad t \approx \text{Session Midpoint (12:22 IST)},$$
+a severe price-time squaring takes place, dictating the entire afternoon trend direction for Nifty / Bank Nifty.
+
+---
+
+## 2. Bidirectional Price ↔ Longitude Conversion Principles
+
+W. D. Gann established that price and time are interchangeable dimensions of the same vibration.
 
 ### System A: Gann Square of Nine (Spiral Wheel of 360°)
-
-The Square of Nine is an arithmetic spiral where numbers advance outward from the center (1). 
-- One full revolution ($360^\circ$ circle) corresponds to an increment of **2.0** on the square root scale ($\sqrt{P}$).
-- An angle of $180^\circ$ corresponds to an increment of **1.0** on the square root scale.
-- Therefore, each degree $\theta$ represents an increment of $\frac{\theta}{180}$ on the square root scale.
+One full revolution ($360^\circ$ circle) corresponds to an increment of **2.0** on the square root scale ($\sqrt{P}$).
 
 #### 1. Price to Longitude ($\text{Price} \to \text{Longitude}$):
-Given a market price $P$:
 $$\theta = \left( \sqrt{P} \pmod 2 \right) \times 180^\circ$$
-*(Where $\theta \in [0^\circ, 360^\circ)$ represents the exact tropical ecliptic longitude degree on the Gann wheel).*
-
-*Example:* 
-- Nifty 50 at $P = 24,350$:
-  - $\sqrt{24350} \approx 156.044865$
-  - $156.044865 \pmod 2 = 0.044865$
-  - $\theta = 0.044865 \times 180^\circ \approx 8.076^\circ$ ($08^\circ\text{Aries }05'$)
 
 #### 2. Longitude to Price ($\text{Longitude} \to \text{Price}$):
-Given a planetary ecliptic longitude $\theta \in [0^\circ, 360^\circ)$ and a reference market price level $P_{\text{ref}}$:
-1. Compute base root offset: $\text{offset} = \frac{\theta}{180^\circ}$
-2. Identify current cycle number $k$:
-   $$k = \left\lfloor \frac{\sqrt{P_{\text{ref}}} - \text{offset}}{2} \right\rfloor$$
-3. Calculate harmonic price ladder levels (Support, Resistance, and higher octaves):
-   $$P_k = \left(2k + \frac{\theta}{180^\circ}\right)^2$$
-   - Support level: $P_{\text{support}} = \left(2k + \frac{\theta}{180^\circ}\right)^2$
-   - Resistance level: $P_{\text{resist}} = \left(2(k + 1) + \frac{\theta}{180^\circ}\right)^2$
-   - Major Gann Aspect Price Projections from $\theta$ ($+90^\circ$ Square, $+180^\circ$ Opposition):
-     $$P_{+90^\circ} = \left(\sqrt{P} + 0.5\right)^2, \quad P_{+180^\circ} = \left(\sqrt{P} + 1.0\right)^2$$
+$$\text{offset} = \frac{\theta}{180^\circ}, \quad k = \left\lfloor \frac{\sqrt{P_{\text{ref}}} - \text{offset}}{2} \right\rfloor$$
+$$P_{\text{support}} = \left(2k + \frac{\theta}{180^\circ}\right)^2, \quad P_{\text{resist}} = \left(2(k + 1) + \frac{\theta}{180^\circ}\right)^2$$
 
----
-
-### System B: Natural Circle / Gann Wheel 360 ($1^\circ = 1 \text{ Point}$ / Scaled Modulo)
-
-Gann’s "Circle of 360" equates 1 degree of planetary longitude directly to points of market movement, adjusted for market scale factor $S = 10^n$ or instrument tick size.
-
-#### 1. Price to Longitude:
+### System B: Natural Circle / Gann Wheel 360 ($1^\circ = 1 \text{ Point}$)
 $$\theta = \left(\frac{P}{\text{Scale}}\right) \pmod{360^\circ}$$
-- For equities/indices ($P > 10,000$, Scale = 1): $\theta = P \pmod{360}$.
-- For commodities/forex with decimals (e.g., Crude Oil, Copper), scale by instrument multiplier (e.g., $\times 10$ or $\times 100$).
-
-*Example:*
-- Crude Oil at $P = 6,120$:
-  - $6120 \pmod{360} = 0^\circ$ (Squares directly at $0^\circ$ Aries / Vernal Equinox).
-
-#### 2. Longitude to Price:
-Given planetary position $\theta$:
-$$P_n = (\theta + 360 \times n) \times \text{Scale} \quad \text{for } n \in \mathbb{Z}^+$$
-Yields natural static harmonic price nodes across successive 360-point cycles.
-
----
-
-### System C: Planetary Line on Chart (Degree-to-Price Scale Factor)
-
-When plotting live planetary price curves on trading charts:
-$$\text{Price Line}(t) = \left(\theta_{\text{planet}}(t) + 360 \times n\right) \times \text{Scale Factor}$$
-- Active conversion factor for Nifty 50: $\text{Scale Factor} = 10 \text{ points per degree}$ or $100 \text{ points per degree}$.
-- Active conversion factor for MCX Base Metals (Copper/Zinc): $1 \text{ point per degree}$.
-
-When market price touches $\text{Price Line}(t)$, price has **squared with the planetary position** in real time.
-
----
-
-## 2. Astronomical Time Factors (Geocentric Tropical Longitudes)
-
-- **Major Aspects:**
-  - $0^\circ$ Conjunction ($\☌$) - Cycle initiation / major trend reversal
-  - $180^\circ$ Opposition ($\☍$) - Peak polarity / counter-trend extreme
-  - $90^\circ / 270^\circ$ Square ($\square$) - High volatility / hard price-time clash
-  - $120^\circ / 240^\circ$ Trine ($\triangle$) - Harmonic continuation / momentum swing
-- **Gann 1/8 Harmonics (Octiles):**
-  - $45^\circ / 315^\circ$ Semi-Square ($\angle$)
-  - $135^\circ / 225^\circ$ Sesqui-Square ($\⚼$)
-- **Ingresses:** Ingress into Cardinal Signs ($0^\circ$ Aries, Cancer, Libra, Capricorn) denotes Gann's 4 natural seasonal pivot divisions.
-- **Stations:** Planetary zero-speed inflection points (Retrograde $\to$ Direct, Direct $\to$ Retrograde).
+$$P_n = (\theta + 360 \times n) \times \text{Scale}$$
 
 ---
 
@@ -93,41 +102,47 @@ When market price touches $\text{Price Line}(t)$, price has **squared with the p
 
 ```python
 import math
+from datetime import date, datetime, time, timedelta
 
-def price_to_sq9_longitude(price: float) -> float:
-    """Convert any market price to its exact degree on the Square of Nine (0° to 360°)."""
-    if price <= 0:
-        return 0.0
-    return ((math.sqrt(price) % 2.0) * 180.0) % 360.0
+def intraday_price_midpoint(high: float, low: float) -> dict[str, float]:
+    """Calculate Gann 50% price equilibrium and quartile harmonic levels."""
+    mid = (high + low) / 2.0
+    q1 = (low + mid) / 2.0   # 25% level
+    q3 = (mid + high) / 2.0  # 75% level
+    return {
+        "low": low,
+        "support_25": q1,
+        "midpoint_50": mid,
+        "resistance_75": q3,
+        "high": high,
+        "range": high - low
+    }
 
-def sq9_longitude_to_price(degree: float, reference_price: float) -> tuple[float, float]:
-    """Given a planetary degree and current market price, returns the bracketing
+def session_time_midpoint(session_open: time, session_close: time, session_date: date) -> datetime:
+    """Calculate the exact 50% temporal midpoint of any market trading session."""
+    dt_open = datetime.combine(session_date, session_open)
+    dt_close = datetime.combine(session_date, session_close)
+    duration = dt_close - dt_open
+    return dt_open + duration / 2
 
-    Square of Nine harmonic support and resistance price levels.
+def nse_session_midpoint(session_date: date) -> datetime:
+    """NSE trading session midpoint (09:15 to 15:30 IST) -> 12:22:30 IST."""
+    return session_time_midpoint(time(9, 15), time(15, 30), session_date)
+
+def equation_of_time(day_of_year: int) -> float:
+    """Approximate Equation of Time in minutes given day of the year (1-366)."""
+    b = 2.0 * math.pi * (day_of_year - 81) / 365.0
+    return 9.87 * math.sin(2.0 * b) - 7.53 * math.cos(b) - 1.5 * math.sin(b)
+
+def solar_noon_ist(session_date: date, longitude_deg: float = 72.825) -> datetime:
+    """Calculate True Solar Noon (Astronomical Midpoint of the Day) in IST.
+
+    Default longitude is Mumbai (72.825° E).
     """
-    if reference_price <= 0:
-        return (0.0, 0.0)
-    offset = (degree % 360.0) / 180.0
-    root = math.sqrt(reference_price)
-    k = math.floor((root - offset) / 2.0)
-    support = (2.0 * k + offset) ** 2
-    resistance = (2.0 * (k + 1) + offset) ** 2
-    if support > reference_price:
-        support, resistance = (2.0 * (k - 1) + offset) ** 2, support
-    return support, resistance
-
-def price_to_natural_degree(price: float, scale: float = 1.0) -> float:
-    """Convert price to natural 360° wheel longitude."""
-    return (price / scale) % 360.0
-
-def natural_degree_to_price_ladder(degree: float, reference_price: float, scale: float = 1.0) -> tuple[float, float]:
-    """Convert planetary longitude to nearest natural 360-degree price levels."""
-    deg = degree % 360.0
-    scaled_price = reference_price / scale
-    n = math.floor(scaled_price / 360.0)
-    support = (n * 360.0 + deg) * scale
-    if support > reference_price:
-        support -= (360.0 * scale)
-    resistance = support + (360.0 * scale)
-    return support, resistance
+    doy = session_date.timetuple().tm_yday
+    eot = equation_of_time(doy)
+    meridian_offset_minutes = (82.5 - longitude_deg) * 4.0
+    total_offset_minutes = meridian_offset_minutes - eot
+    noon_base = datetime.combine(session_date, time(12, 0))
+    return noon_base + timedelta(minutes=total_offset_minutes)
 ```

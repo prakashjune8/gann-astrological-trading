@@ -8,8 +8,34 @@ from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, KeepTogether, HRFlowable
 )
 from reportlab.pdfgen import canvas
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 
 PDF_PATH = r"d:\ephemeris\Gann_Celestial_and_Midpoint_Trading_Handbook.pdf"
+
+
+def register_handbook_fonts() -> tuple[str, str, str]:
+    """Register Windows TrueType fonts for native Unicode mathematical glyphs."""
+    windir = os.environ.get("WINDIR", r"C:\Windows")
+    fonts_dir = os.path.join(windir, "Fonts")
+    
+    segoe = os.path.join(fonts_dir, "segoeui.ttf")
+    segoe_b = os.path.join(fonts_dir, "segoeuib.ttf")
+    segoe_i = os.path.join(fonts_dir, "segoeuii.ttf")
+    
+    if os.path.exists(segoe) and os.path.exists(segoe_b):
+        pdfmetrics.registerFont(TTFont("SegoeUI", segoe))
+        pdfmetrics.registerFont(TTFont("SegoeUI-Bold", segoe_b))
+        if os.path.exists(segoe_i):
+            pdfmetrics.registerFont(TTFont("SegoeUI-Italic", segoe_i))
+        else:
+            pdfmetrics.registerFont(TTFont("SegoeUI-Italic", segoe))
+        return "SegoeUI", "SegoeUI-Bold", "SegoeUI-Italic"
+    return "Helvetica", "Helvetica-Bold", "Helvetica-Oblique"
+
+
+REG_FONT, BOLD_FONT, ITAL_FONT = register_handbook_fonts()
+
 
 class NumberedCanvas(canvas.Canvas):
     def __init__(self, *args, **kwargs):
@@ -30,12 +56,13 @@ class NumberedCanvas(canvas.Canvas):
 
     def draw_page_decorations(self, page_count):
         self.saveState()
-        self.setFont("Helvetica", 9)
+        self.setFont(REG_FONT, 8.5)
         self.setFillColor(colors.HexColor("#4a5568"))
         
         # Header (Pages > 1)
         if self._pageNumber > 1:
             self.drawString(54, 750, "W. D. Gann Astro-Harmonic Market Timing & Midpoint Handbook")
+            self.drawRightString(558, 750, "PRACTICAL OPERATIONAL MANUAL")
             self.setStrokeColor(colors.HexColor("#cbd5e0"))
             self.setLineWidth(0.5)
             self.line(54, 742, 558, 742)
@@ -48,6 +75,50 @@ class NumberedCanvas(canvas.Canvas):
         page_text = f"Page {self._pageNumber} of {page_count}"
         self.drawRightString(558, 32, page_text)
         self.restoreState()
+
+
+def make_handbook_formula_card(
+    title: str,
+    main_formula: str,
+    parameters: list[str] | None = None
+) -> Table:
+    """Creates a clean, styled formula card for the handbook."""
+    h_style = ParagraphStyle(
+        'HFH', fontName=BOLD_FONT, fontSize=8, leading=10.5, textColor=colors.white
+    )
+    f_style = ParagraphStyle(
+        'HFF', fontName=BOLD_FONT, fontSize=10, leading=13.5,
+        textColor=colors.HexColor("#0f2942"), alignment=1
+    )
+    p_style = ParagraphStyle(
+        'HFP', fontName=REG_FONT, fontSize=7.5, leading=10,
+        textColor=colors.HexColor("#2d3748")
+    )
+
+    rows = [
+        [Paragraph(f"<b>EQUATION: {title.upper()}</b>", h_style)],
+        [Paragraph(f"<b>{main_formula}</b>", f_style)]
+    ]
+    if parameters:
+        p_text = "<br/>".join(f"• {param}" for param in parameters)
+        rows.append([Paragraph(p_text, p_style)])
+
+    t = Table(rows, colWidths=[504])
+    style_cmds = [
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#1a365d")),
+        ('BACKGROUND', (0,1), (-1,1), colors.HexColor("#f0f4f8")),
+        ('BOX', (0,0), (-1,-1), 1, colors.HexColor("#2b6cb0")),
+        ('TOPPADDING', (0,0), (-1,-1), 3),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+        ('LEFTPADDING', (0,0), (-1,-1), 8),
+        ('RIGHTPADDING', (0,0), (-1,-1), 8),
+    ]
+    if len(rows) > 2:
+        style_cmds.append(('BACKGROUND', (0,2), (-1,-1), colors.HexColor("#ffffff")))
+        style_cmds.append(('LINEABOVE', (0,2), (-1,2), 0.5, colors.HexColor("#cbd5e0")))
+
+    t.setStyle(TableStyle(style_cmds))
+    return t
 
 
 def build_pdf():
@@ -66,7 +137,7 @@ def build_pdf():
     title_style = ParagraphStyle(
         'DocTitle',
         parent=styles['Normal'],
-        fontName='Helvetica-Bold',
+        fontName=BOLD_FONT,
         fontSize=24,
         leading=28,
         textColor=colors.HexColor("#1a365d"),
@@ -76,7 +147,7 @@ def build_pdf():
     subtitle_style = ParagraphStyle(
         'DocSub',
         parent=styles['Normal'],
-        fontName='Helvetica',
+        fontName=REG_FONT,
         fontSize=12,
         leading=16,
         textColor=colors.HexColor("#4a5568"),
@@ -86,56 +157,56 @@ def build_pdf():
     h1_style = ParagraphStyle(
         'H1',
         parent=styles['Normal'],
-        fontName='Helvetica-Bold',
-        fontSize=16,
-        leading=20,
+        fontName=BOLD_FONT,
+        fontSize=15,
+        leading=19,
         textColor=colors.HexColor("#1a365d"),
-        spaceBefore=14,
-        spaceAfter=8,
+        spaceBefore=12,
+        spaceAfter=7,
         keepWithNext=True
     )
 
     h2_style = ParagraphStyle(
         'H2',
         parent=styles['Normal'],
-        fontName='Helvetica-Bold',
-        fontSize=12,
-        leading=16,
+        fontName=BOLD_FONT,
+        fontSize=11.5,
+        leading=15,
         textColor=colors.HexColor("#2b6cb0"),
-        spaceBefore=10,
-        spaceAfter=6,
+        spaceBefore=9,
+        spaceAfter=5,
         keepWithNext=True
     )
 
     body_style = ParagraphStyle(
         'Body',
         parent=styles['Normal'],
-        fontName='Helvetica',
-        fontSize=10,
-        leading=14,
+        fontName=REG_FONT,
+        fontSize=9.5,
+        leading=13.5,
         textColor=colors.HexColor("#2d3748"),
-        spaceAfter=8
+        spaceAfter=7
     )
 
     body_bold = ParagraphStyle(
         'BodyBold',
         parent=body_style,
-        fontName='Helvetica-Bold'
+        fontName=BOLD_FONT
     )
 
     callout_style = ParagraphStyle(
         'Callout',
         parent=styles['Normal'],
-        fontName='Helvetica-Oblique',
-        fontSize=9.5,
-        leading=13.5,
+        fontName=ITAL_FONT,
+        fontSize=9,
+        leading=13,
         textColor=colors.HexColor("#2c5282")
     )
 
     formula_style = ParagraphStyle(
         'Formula',
         parent=styles['Normal'],
-        fontName='Courier-Bold',
+        fontName=BOLD_FONT,
         fontSize=9.5,
         leading=13,
         textColor=colors.HexColor("#742a2a")
@@ -144,8 +215,8 @@ def build_pdf():
     table_header_style = ParagraphStyle(
         'TH',
         parent=styles['Normal'],
-        fontName='Helvetica-Bold',
-        fontSize=9,
+        fontName=BOLD_FONT,
+        fontSize=8.5,
         leading=11,
         textColor=colors.white
     )
@@ -153,16 +224,16 @@ def build_pdf():
     table_cell_style = ParagraphStyle(
         'TC',
         parent=styles['Normal'],
-        fontName='Helvetica',
-        fontSize=8.5,
-        leading=11,
+        fontName=REG_FONT,
+        fontSize=8,
+        leading=10.5,
         textColor=colors.HexColor("#2d3748")
     )
 
     table_cell_bold = ParagraphStyle(
         'TCB',
         parent=table_cell_style,
-        fontName='Helvetica-Bold'
+        fontName=BOLD_FONT
     )
 
     story = []
@@ -267,19 +338,30 @@ def build_pdf():
         ('RIGHTPADDING', (0,0), (-1,-1), 6),
     ]))
     story.append(t_aspect)
-    story.append(Spacer(1, 10))
+    story.append(Spacer(1, 8))
 
     story.append(Paragraph("2.2 Bidirectional Price ↔ Longitude Conversion Mathematics", h2_style))
     story.append(Paragraph(
-        "The application features Gann's mathematical formulas converting planetary ecliptic degrees into exact market price rungs:",
+        "The application incorporates Gann's authentic mathematical formulas converting planetary ecliptic degrees into exact market price levels:",
         body_style
     ))
-    story.append(Paragraph("<b>A. Square of Nine Formulas:</b> One full 360° circle advances square roots by 2.0. "
-                           "Odd integer squares anchor the 0° base axis: <code>sqrt(P) = 2k + 1</code>.<br/>"
-                           "• Fixed Wheel Ray Rung: <code>Price = (2 * k + 1.0 + degree / 180.0) ^ 2</code><br/>"
-                           "• Relative Harmonic Projection: <code>Price = (sqrt(P_ref) ± degree / 180.0) ^ 2</code>", body_style))
-    story.append(Paragraph("The software automatically identifies cycle index <code>k</code> based on your active LTP and outputs the exact support and resistance rungs bracketing the spot index.", body_style))
-    story.append(Paragraph("<b>B. Natural 360° Wheel:</b> <code>Price Modulo 360</code> equates points directly to circular coordinates (e.g., Nifty at 24,350 = 230° Scorpio).", body_style))
+
+    card_h_sq9 = make_handbook_formula_card(
+        "Square of Nine Fixed Wheel Rungs & Quadratic Root Harmonics",
+        "P(k, θ) = [ 2k + 1.0 + (θ mod 360°) / 180° ]²,    k = ⌊ (√P_ref − 1.0 − θ / 180°) / 2 ⌋",
+        [
+            "Odd integer squares anchor the 0° base axis: √P = 2k + 1 (1, 9, 25, 49, 81...)",
+            "Fixed Support / Resistance: Rungs bracketing spot price P_ref along planetary ray θ",
+            "Relative Quadratic Projections: P_±θ = (√P_ref ± θ / 180°)²   [+90°: +0.50, +120°: +⅔, +180°: +1.00]"
+        ]
+    )
+    story.append(card_h_sq9)
+    story.append(Spacer(1, 6))
+
+    story.append(Paragraph(
+        "<b>Natural 360° Wheel:</b> <code>Price Modulo 360</code> equates points directly to circular coordinates (e.g., Nifty at 24,350 = 230° Scorpio).",
+        body_style
+    ))
 
     story.append(Paragraph("2.3 Strict Indian Market Rules & Exclusion Compliance", h2_style))
     story.append(Paragraph(
@@ -302,7 +384,22 @@ def build_pdf():
         body_style
     ))
 
-    story.append(Paragraph("3.1 The 6 Calculation Methods Explained", h2_style))
+    story.append(Paragraph("3.1 Core Intraday Mathematical Formulations", h2_style))
+
+    card_h_mid = make_handbook_formula_card(
+        "360° Session Time Harmonics & Method 6 Price Octaves",
+        "T_Left(−θ) = T_mid − [ θ × (Duration / 360°) ],    T_Right(+θ) = T_mid + [ θ × (Duration / 360°) ]",
+        [
+            "Session Time Scales: NSE Equity (375m) 1° = 1.0417m (62.5s) | MCX Commodity (870m) 1° = 2.4167m (145s)",
+            "Method 6 Linear Range Octaves: P_Range(±θ) = P₅₀ ± (θ / 360°) × Range = P₅₀ ± (θ / 180°) × (Range / 2)",
+            "Method 6 Sq9 Quadratic Roots: P_Sq9_Sup(−θ) = [ max(0, √P₅₀ − θ/180°) ]²,  P_Sq9_Res(+θ) = [ √P₅₀ + θ/180° ]²",
+            "NOAA Spencer True Solar Noon: EoT(Γ) = 229.18 × [0.000075 + 0.001868 cos Γ − 0.032077 sin Γ − ...], Noon = 12:00 + 38.7m − EoT"
+        ]
+    )
+    story.append(card_h_mid)
+    story.append(Spacer(1, 6))
+
+    story.append(Paragraph("3.2 The 6 Calculation Methods Explained", h2_style))
 
     methods_data = [
         [Paragraph("Method", table_header_style), Paragraph("Midpoint Formula", table_header_style), Paragraph("Degree Scale", table_header_style), Paragraph("Trading Application", table_header_style)],
@@ -322,7 +419,7 @@ def build_pdf():
             Paragraph("<b>Method 3:<br/>Solar Noon</b>", table_cell_style),
             Paragraph("Mumbai Zenith =<br/><b>12:22 - 12:54 IST</b>", table_cell_style),
             Paragraph("1° = 4.0000 min<br/>(240.0 sec)", table_cell_style),
-            Paragraph("Astronomical True Solar Noon corrected for Equation of Time. On Oct 27, aligned within 10s of NSE Midpoint (Double Confluence).", table_cell_style)
+            Paragraph("Astronomical True Solar Noon corrected for NOAA Spencer Equation of Time. Aligns within seconds of NSE Midpoint.", table_cell_style)
         ],
         [
             Paragraph("<b>Method 4:<br/>Opening Range</b>", table_cell_style),
@@ -339,24 +436,24 @@ def build_pdf():
         [
             Paragraph("<b>Method 6:<br/>Price Equilibrium</b>", table_cell_style),
             Paragraph("<b>(High + Low) / 2</b><br/>(e.g. 24,350 pts)", table_cell_style),
-            Paragraph("1° = Range / 360°<br/>+ Time 1.04m", table_cell_style),
+            Paragraph("Dual: Range 8ths<br/>+ Sq9 √P Frequencies", table_cell_style),
             Paragraph("<b>Dual Price & Time Squaring:</b> Generates exact numerical price support/resistance levels mapped alongside time degrees.", table_cell_style)
         ]
     ]
-    t_methods = Table(methods_data, colWidths=[80, 85, 75, 264])
+    t_methods = Table(methods_data, colWidths=[80, 85, 80, 259])
     t_methods.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#1a365d")),
         ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#cbd5e0")),
         ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor("#f7fafc")]),
-        ('TOPPADDING', (0,0), (-1,-1), 5),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+        ('TOPPADDING', (0,0), (-1,-1), 4),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
         ('LEFTPADDING', (0,0), (-1,-1), 5),
         ('RIGHTPADDING', (0,0), (-1,-1), 5),
     ]))
     story.append(t_methods)
-    story.append(Spacer(1, 10))
+    story.append(Spacer(1, 8))
 
-    story.append(Paragraph("3.2 Harmonic Degrees Timetable Reference (NSE Equity Session)", h2_style))
+    story.append(Paragraph("3.3 Harmonic Degrees Timetable Reference (NSE Equity Session)", h2_style))
 
     sample_table_data = [
         [Paragraph("Degree", table_header_style), Paragraph("Left (Morning)", table_header_style), Paragraph("Right (Afternoon)", table_header_style), Paragraph("Significance & Strategy Execution", table_header_style)],

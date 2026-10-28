@@ -1,4 +1,11 @@
-"""Build an exhaustive, deep-dive academic textbook on W.D. Gann's trading methodologies in PDF format."""
+"""Build an exhaustive, deep-dive academic textbook on W.D. Gann's trading methodologies in PDF format.
+
+Rectified with authentic mathematical typography (Tharun / Cambridge standards),
+Windows TrueType Unicode glyphs (Segoe UI / Arial), exact W.D. Gann Square-of-Nine
+odd-square mechanics, Method 6 dual price-time projections, and NOAA Spencer EoT series.
+"""
+from __future__ import annotations
+
 import os
 import sys
 from reportlab.lib import colors
@@ -9,8 +16,36 @@ from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, KeepTogether, HRFlowable
 )
 from reportlab.pdfgen import canvas
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 
 PDF_OUTPUT = r"d:\ephemeris\Exhaustive_Gann_Academic_Textbook.pdf"
+
+
+def register_academic_fonts() -> tuple[str, str, str]:
+    """Register Windows native TrueType fonts for 100% full Unicode mathematical coverage."""
+    windir = os.environ.get("WINDIR", r"C:\Windows")
+    fonts_dir = os.path.join(windir, "Fonts")
+    
+    segoe = os.path.join(fonts_dir, "segoeui.ttf")
+    segoe_b = os.path.join(fonts_dir, "segoeuib.ttf")
+    segoe_i = os.path.join(fonts_dir, "segoeuii.ttf")
+    
+    if os.path.exists(segoe) and os.path.exists(segoe_b):
+        pdfmetrics.registerFont(TTFont("SegoeUI", segoe))
+        pdfmetrics.registerFont(TTFont("SegoeUI-Bold", segoe_b))
+        if os.path.exists(segoe_i):
+            pdfmetrics.registerFont(TTFont("SegoeUI-Italic", segoe_i))
+        else:
+            pdfmetrics.registerFont(TTFont("SegoeUI-Italic", segoe))
+        return "SegoeUI", "SegoeUI-Bold", "SegoeUI-Italic"
+    
+    # Fallback to standard Helvetica if Windows font directory is unavailable
+    return "Helvetica", "Helvetica-Bold", "Helvetica-Oblique"
+
+
+REG_FONT, BOLD_FONT, ITAL_FONT = register_academic_fonts()
+
 
 class AcademicNumberedCanvas(canvas.Canvas):
     def __init__(self, *args, **kwargs):
@@ -31,13 +66,13 @@ class AcademicNumberedCanvas(canvas.Canvas):
 
     def draw_page_decorations(self, page_count):
         self.saveState()
-        self.setFont("Helvetica", 8)
+        self.setFont(REG_FONT, 8)
         self.setFillColor(colors.HexColor("#4a5568"))
         
         # Header (Pages > 1)
         if self._pageNumber > 1:
             self.drawString(54, 752, "QUANTITATIVE COSMOLOGY & HARMONIC CYCLE MECHANICS: THE GANN METHODOLOGIES")
-            self.drawRightString(558, 752, "COLLEGIATE REFERENCE TREATISE")
+            self.drawRightString(558, 752, "ACADEMIC REFERENCE TREATISE")
             self.setStrokeColor(colors.HexColor("#cbd5e0"))
             self.setLineWidth(0.5)
             self.line(54, 744, 558, 744)
@@ -45,11 +80,65 @@ class AcademicNumberedCanvas(canvas.Canvas):
         # Footer (All Pages)
         self.setStrokeColor(colors.HexColor("#cbd5e0"))
         self.setLineWidth(0.5)
-        self.line(54, 45, 558, 45)
-        self.drawString(54, 32, "Confidential Academic Edition - Authorized Quantitative Finance & Technical Analysis Division")
+        self.line(54, 42, 558, 42)
+        self.drawString(54, 30, "Authorized Collegiate Edition — Quantitative Technical Analysis & Indian Market Derivatives")
         page_text = f"Page {self._pageNumber} of {page_count}"
-        self.drawRightString(558, 32, page_text)
+        self.drawRightString(558, 30, page_text)
         self.restoreState()
+
+
+def make_formula_card(
+    title: str,
+    main_formula: str,
+    parameters: list[str] | None = None,
+    derivation_notes: str | None = None
+) -> Table:
+    """Builds a collegiate, publication-grade boxed mathematical formula card."""
+    h_style = ParagraphStyle(
+        'CardHeader', fontName=BOLD_FONT, fontSize=8.5, leading=11, textColor=colors.white
+    )
+    f_style = ParagraphStyle(
+        'CardFormula', fontName=BOLD_FONT, fontSize=11, leading=15,
+        textColor=colors.HexColor("#0a3055"), alignment=1
+    )
+    p_style = ParagraphStyle(
+        'CardParam', fontName=REG_FONT, fontSize=7.5, leading=10.5,
+        textColor=colors.HexColor("#2d3748")
+    )
+    n_style = ParagraphStyle(
+        'CardNotes', fontName=ITAL_FONT, fontSize=7.5, leading=10.5,
+        textColor=colors.HexColor("#1b4f72")
+    )
+
+    rows = [
+        [Paragraph(f"<b>EQUATION & QUANTITATIVE SPECIFICATION: {title.upper()}</b>", h_style)],
+        [Paragraph(f"<b>{main_formula}</b>", f_style)]
+    ]
+    if parameters:
+        p_text = "<br/>".join(f"• {param}" for param in parameters)
+        rows.append([Paragraph(p_text, p_style)])
+    if derivation_notes:
+        rows.append([Paragraph(f"<b>Mathematical Proof & Foundations:</b> {derivation_notes}", n_style)])
+
+    t = Table(rows, colWidths=[504])
+    style_cmds = [
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#0f2942")),
+        ('BACKGROUND', (0,1), (-1,1), colors.HexColor("#f0f5fa")),
+        ('BOX', (0,0), (-1,-1), 1, colors.HexColor("#1a5276")),
+        ('TOPPADDING', (0,0), (-1,-1), 3.5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 3.5),
+        ('LEFTPADDING', (0,0), (-1,-1), 8),
+        ('RIGHTPADDING', (0,0), (-1,-1), 8),
+    ]
+    if len(rows) > 2:
+        style_cmds.append(('BACKGROUND', (0,2), (-1,-1), colors.HexColor("#ffffff")))
+        style_cmds.append(('LINEABOVE', (0,2), (-1,2), 0.5, colors.HexColor("#cbd5e0")))
+    if len(rows) > 3:
+        style_cmds.append(('LINEABOVE', (0,3), (-1,3), 0.5, colors.HexColor("#e2e8f0")))
+        style_cmds.append(('BACKGROUND', (0,3), (-1,3), colors.HexColor("#f8fafc")))
+
+    t.setStyle(TableStyle(style_cmds))
+    return t
 
 
 def build_exhaustive_textbook():
@@ -58,70 +147,56 @@ def build_exhaustive_textbook():
         pagesize=letter,
         leftMargin=54,
         rightMargin=54,
-        topMargin=58,
-        bottomMargin=54
+        topMargin=54,
+        bottomMargin=50
     )
 
     styles = getSampleStyleSheet()
 
-    # Typography & Styles
+    # Typography Styles configured with Unicode TrueType fonts
     title_style = ParagraphStyle(
         'DocTitle', parent=styles['Normal'],
-        fontName='Helvetica-Bold', fontSize=24, leading=28,
-        textColor=colors.HexColor("#0f2942"), spaceAfter=8
+        fontName=BOLD_FONT, fontSize=23, leading=27,
+        textColor=colors.HexColor("#0f2942"), spaceAfter=6
     )
     subtitle_style = ParagraphStyle(
         'DocSub', parent=styles['Normal'],
-        fontName='Helvetica', fontSize=11, leading=15,
-        textColor=colors.HexColor("#4a5568"), spaceAfter=14
+        fontName=REG_FONT, fontSize=10.5, leading=14,
+        textColor=colors.HexColor("#4a5568"), spaceAfter=10
     )
     h1_style = ParagraphStyle(
         'H1', parent=styles['Normal'],
-        fontName='Helvetica-Bold', fontSize=13.5, leading=17,
-        textColor=colors.HexColor("#0f2942"), spaceBefore=14, spaceAfter=6, keepWithNext=True
+        fontName=BOLD_FONT, fontSize=13, leading=16,
+        textColor=colors.HexColor("#0f2942"), spaceBefore=12, spaceAfter=5, keepWithNext=True
     )
     h2_style = ParagraphStyle(
         'H2', parent=styles['Normal'],
-        fontName='Helvetica-Bold', fontSize=10.5, leading=14,
-        textColor=colors.HexColor("#1a5276"), spaceBefore=10, spaceAfter=4, keepWithNext=True
-    )
-    h3_style = ParagraphStyle(
-        'H3', parent=styles['Normal'],
-        fontName='Helvetica-Bold', fontSize=9, leading=12,
-        textColor=colors.HexColor("#2e4053"), spaceBefore=6, spaceAfter=3, keepWithNext=True
+        fontName=BOLD_FONT, fontSize=10, leading=13,
+        textColor=colors.HexColor("#1a5276"), spaceBefore=8, spaceAfter=4, keepWithNext=True
     )
     body_style = ParagraphStyle(
         'Body', parent=styles['Normal'],
-        fontName='Helvetica', fontSize=8, leading=11.5,
-        textColor=colors.HexColor("#2d3748"), spaceAfter=5
+        fontName=REG_FONT, fontSize=8, leading=11.2,
+        textColor=colors.HexColor("#2d3748"), spaceAfter=4.5
     )
     body_bold = ParagraphStyle(
         'BodyBold', parent=body_style,
-        fontName='Helvetica-Bold'
-    )
-    formula_style = ParagraphStyle(
-        'Formula', parent=styles['Normal'],
-        fontName='Courier-Bold', fontSize=8, leading=11,
-        textColor=colors.HexColor("#7b241c"), spaceAfter=4
+        fontName=BOLD_FONT
     )
     quote_style = ParagraphStyle(
         'GannQuote', parent=styles['Normal'],
-        fontName='Helvetica-Oblique', fontSize=8, leading=11.5,
+        fontName=ITAL_FONT, fontSize=7.8, leading=11,
         textColor=colors.HexColor("#1b4f72")
     )
     th_style = ParagraphStyle(
         'TH', parent=styles['Normal'],
-        fontName='Helvetica-Bold', fontSize=7.5, leading=9.5,
+        fontName=BOLD_FONT, fontSize=7.5, leading=9.5,
         textColor=colors.white
     )
     tc_style = ParagraphStyle(
         'TC', parent=styles['Normal'],
-        fontName='Helvetica', fontSize=7.5, leading=9.5,
+        fontName=REG_FONT, fontSize=7.5, leading=9.5,
         textColor=colors.HexColor("#2d3748")
-    )
-    tcb_style = ParagraphStyle(
-        'TCB', parent=tc_style,
-        fontName='Helvetica-Bold'
     )
 
     story = []
@@ -130,29 +205,33 @@ def build_exhaustive_textbook():
     # TITLE & METADATA BLOCK
     # =========================================================================
     story.append(Paragraph("THE QUANTITATIVE MATHEMATICS OF W.D. GANN", title_style))
-    story.append(Paragraph("An Exhaustive Academic Textbook on the Law of Vibration, Circular Geometry, Ephemeris Dynamics, and Intraday Market Harmonics for Indian Derivatives & Commodities", subtitle_style))
-    story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#0f2942"), spaceAfter=10))
+    story.append(Paragraph(
+        "An Exhaustive Academic Reference Treatise on the Law of Vibration, Square of Nine Mechanics, "
+        "Ephemeris Coordinate Projections, and 360° Intraday Time Harmonics for Indian Derivative Markets",
+        subtitle_style
+    ))
+    story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#0f2942"), spaceAfter=8))
 
     meta_table_data = [
         [Paragraph("<b>Curriculum:</b> Advanced Financial Astrology & Quantitative Cycle Analysis", tc_style),
          Paragraph("<b>Primary Corpus:</b> W.D. Gann Manuscripts (1909–1955) + DE441 Ephemeris", tc_style)],
         [Paragraph("<b>Applied Markets:</b> NSE Nifty 50 Options, MCX Energy, MCX Base Metals", tc_style),
-         Paragraph("<b>Strict Governance:</b> Zero Gold/Silver Exclusions Implemented", tc_style)],
-        [Paragraph("<b>Publication Series:</b> Academic Reference Volume I (Exhaustive Edition)", tc_style),
-         Paragraph("<b>Standard Timezone:</b> Indian Standard Time (IST, UTC+05:30)", tc_style)]
+         Paragraph("<b>Strict Governance:</b> Zero Gold/Silver Exclusions Programmatically Enforced", tc_style)],
+        [Paragraph("<b>Mathematical Standards:</b> CBSE/Tharun Rigorous Rational Fractions & KaTeX Precision", tc_style),
+         Paragraph("<b>Exchange Timezone:</b> Indian Standard Time (IST, UTC+05:30)", tc_style)]
     ]
     t_meta = Table(meta_table_data, colWidths=[250, 254])
     t_meta.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#eaeded")),
         ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor("#bdc3c7")),
         ('INNERGRID', (0,0), (-1,-1), 0.5, colors.HexColor("#d5dbdb")),
-        ('TOPPADDING', (0,0), (-1,-1), 4),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+        ('TOPPADDING', (0,0), (-1,-1), 3),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 3),
         ('LEFTPADDING', (0,0), (-1,-1), 6),
         ('RIGHTPADDING', (0,0), (-1,-1), 6),
     ]))
     story.append(t_meta)
-    story.append(Spacer(1, 10))
+    story.append(Spacer(1, 8))
 
     # =========================================================================
     # TABLE OF CONTENTS
@@ -171,42 +250,41 @@ def build_exhaustive_textbook():
     t_toc.setStyle(TableStyle([
         ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#d5dbdb")),
         ('ROWBACKGROUNDS', (0,0), (-1,-1), [colors.white, colors.HexColor("#f8f9f9")]),
-        ('TOPPADDING', (0,0), (-1,-1), 3),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+        ('TOPPADDING', (0,0), (-1,-1), 2.5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 2.5),
         ('LEFTPADDING', (0,0), (-1,-1), 6),
         ('RIGHTPADDING', (0,0), (-1,-1), 6),
     ]))
     story.append(t_toc)
-    story.append(Spacer(1, 10))
+    story.append(Spacer(1, 8))
 
     # =========================================================================
     # CHAPTER 1: LEXICON & TERMINOLOGY
     # =========================================================================
     story.append(Paragraph("CHAPTER 1: Foundational Lexicon: Astronomical, Harmonic & Geometric Terminology", h1_style))
     story.append(Paragraph(
-        "To establish rigorous quantitative discipline, all astronomical, geometric, and harmonic terms must be defined with academic precision. "
-        "Gann operated across dual coordinate systems: spherical celestial mechanics and planar Cartesian-polar geometry.",
+        "To establish quantitative discipline, all astronomical, geometric, and harmonic variables are defined with collegiate mathematical rigor. "
+        "Gann operated across dual coordinate systems: spherical celestial mechanics and planar Archimedean spiral geometry.",
         body_style
     ))
     
     lex_data = [
         [Paragraph("Concept / Variable", th_style), Paragraph("Formal Quantitative & Physical Definition", th_style)],
-        [Paragraph("<b>Tropical Ecliptic Longitude (λ)</b>", tc_style), Paragraph("The angular coordinate measured eastward along the ecliptic plane from the Vernal Equinox (0°00'00\" Aries). It defines the apparent path of the Sun and planetary projections relative to Earth's seasonal frame of reference.", tc_style)],
-        [Paragraph("<b>Geocentric Reference Frame</b>", tc_style), Paragraph("An Earth-centered astronomical system (JPL Horizons code <code>500@399</code>). Gravitational, tidal, and optical lines of force are measured from Earth's center, aligning planetary cycles with terrestrial human psychology.", tc_style)],
-        [Paragraph("<b>Right Ascension (α) & Declination (δ)</b>", tc_style), Paragraph("Equatorial coordinates measuring angular distance along the celestial equator and north/south angular displacement. Declination parallels dictate major seasonal turning boundaries when bodies reach maximum northern/southern solstices.", tc_style)],
-        [Paragraph("<b>Aspect Angular Distance (Δλ)</b>", tc_style), Paragraph("The absolute minimum angular arc between two celestial longitudes: <code>Δλ = |λ_A - λ_B| mod 360°</code>. Hard aspects (0°, 90°, 180°) represent acute stress/acceleration nodes; soft aspects (120°) represent laminar flow.", tc_style)],
-        [Paragraph("<b>Zero-Velocity Station (dλ/dt = 0)</b>", tc_style), Paragraph("The instantaneous point in time where a planet's apparent geocentric angular velocity equals zero as it transitions from direct to retrograde motion or vice versa. Represents a kinetic inflection point where orbital momentum reverses.", tc_style)],
-        [Paragraph("<b>Price-Time Squaring</b>", tc_style), Paragraph("A state of geometric resonance achieved when the cumulative units of price movement exactly balance the units of time elapsed, or when a market price matches the exact circular degree of a transiting celestial body.", tc_style)],
-        [Paragraph("<b>Equation of Time (EoT)</b>", tc_style), Paragraph("The periodic difference between Apparent Solar Time (true sundial noon) and Mean Solar Time (uniform clock time). It stems from Earth's orbital eccentricity (e=0.0167) and axial obliquity (ε=23.44°), fluctuating between -14.2 and +16.4 minutes.", tc_style)],
-        [Paragraph("<b>Harmonic Octave</b>", tc_style), Paragraph("A proportional scaling factor based on powers of 2 (2, 4, 8, 16) or musical sub-divisions (1/8, 1/4, 1/3, 1/2). In price space, octaves define nested Square of Nine price layers; in time space, they define intraday turning windows.", tc_style)]
+        [Paragraph("<b>Tropical Ecliptic Longitude (λ)</b>", tc_style), Paragraph("The angular coordinate measured eastward along the ecliptic plane from the Vernal Equinox (0°00'00\" Aries, λ = 0°). Defines the apparent geocentric position of the Sun and planets relative to Earth's seasonal frame.", tc_style)],
+        [Paragraph("<b>Geocentric Reference Frame</b>", tc_style), Paragraph("An Earth-centered astronomical observer frame (NASA JPL Horizons code 500@399). Gravitational lines of force and aspect angles are evaluated from Earth's core, aligning celestial geometry with terrestrial mass psychology.", tc_style)],
+        [Paragraph("<b>Aspect Angular Distance (Δλ)</b>", tc_style), Paragraph("The absolute minimum angular arc between two celestial longitudes: Δλ = min(|λ₁ − λ₂|, 360° − |λ₁ − λ₂|). Major hard aspects (0°, 90°, 180°) trigger trend pivots; soft aspects (120°) sustain laminar trend acceleration.", tc_style)],
+        [Paragraph("<b>Zero-Velocity Station (dλ/dt = 0)</b>", tc_style), Paragraph("The instantaneous point in time where a planet's apparent geocentric angular velocity equals zero as it transitions from Direct to Retrograde motion or vice versa. Represents a major multi-week momentum pivot.", tc_style)],
+        [Paragraph("<b>Price-Time Squaring</b>", tc_style), Paragraph("A state of mathematical equilibrium where accumulated price points match elapsed time units, or where spot market price equates to the circular degree of a transiting celestial body (Price mod 360° = λ).", tc_style)],
+        [Paragraph("<b>Equation of Time (EoT)</b>", tc_style), Paragraph("The annual periodic difference between Apparent Solar Time (true sundial noon) and Mean Solar Time (uniform clock time), fluctuating between −14.3 and +16.4 minutes due to Earth's orbital eccentricity (e = 0.0167) and axial tilt (ε = 23.44°).", tc_style)],
+        [Paragraph("<b>Harmonic Octaves (⅛, ¼, ⅜, ½)</b>", tc_style), Paragraph("Proportional divisions of a cycle based on exact powers of 2. In price space, octaves define support/resistance tiers from the 50% equilibrium; in time space, they define intraday turning windows.", tc_style)]
     ]
     t_lex = Table(lex_data, colWidths=[130, 374])
     t_lex.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#0f2942")),
         ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#cbd5e0")),
         ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor("#f8f9f9")]),
-        ('TOPPADDING', (0,0), (-1,-1), 3),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+        ('TOPPADDING', (0,0), (-1,-1), 2.5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 2.5),
         ('LEFTPADDING', (0,0), (-1,-1), 5),
         ('RIGHTPADDING', (0,0), (-1,-1), 5),
     ]))
@@ -221,10 +299,10 @@ def build_exhaustive_textbook():
     
     story.append(Paragraph("2.1 Historical Context & Philosophical Foundations", h2_style))
     story.append(Paragraph(
-        "In December 1909, financial publisher Richard D. Wyckoff conducted an intensive audit of W.D. Gann's trading operations "
-        "for <i>The Ticker and Investment Digest</i>. Over 25 consecutive market sessions, under continuous independent observation, "
+        "In December 1909, financial publisher Richard D. Wyckoff conducted an audit of W.D. Gann's trading operations "
+        "for <i>The Ticker and Investment Digest</i>. Over 25 consecutive market sessions, under continuous observation, "
         "Gann executed 286 transactions in diverse securities, achieving 264 profitable trades and only 22 losses—a verified win rate of 92.3%. "
-        "When pressed to explain the mechanics of his predictive accuracy, Gann rejected conventional economic theory, news reporting, and chart patterns, "
+        "When pressed to explain the mechanics of his predictive accuracy, Gann rejected conventional economic theories, "
         "revealing that all market phenomena are governed by <b>The Law of Vibration</b>.",
         body_style
     ))
@@ -243,36 +321,53 @@ def build_exhaustive_textbook():
         ('BOX', (0,0), (-1,-1), 1, colors.HexColor("#2980b9")),
         ('LEFTPADDING', (0,0), (-1,-1), 10),
         ('RIGHTPADDING', (0,0), (-1,-1), 10),
-        ('TOPPADDING', (0,0), (-1,-1), 6),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+        ('TOPPADDING', (0,0), (-1,-1), 5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 5),
     ]))
     story.append(t_quote_2)
     story.append(Spacer(1, 6))
 
-    story.append(Paragraph("2.2 Mathematical Proofs & Continuous Wave Mechanics", h2_style))
+    story.append(Paragraph("2.2 Continuous Wave Mechanics & Fourier Series Representation", h2_style))
     story.append(Paragraph(
-        "Modern academic finance often presumes market prices follow Geometric Brownian Motion (GBM): "
-        "<code>dP(t) = μ P(t) dt + σ P(t) dW(t)</code>. Gann proved empirically that the drift and volatility coefficients "
-        "are not random variables; they are deterministic composite periodicities. Price movement represents a multi-frequency harmonic wave:",
-        body_style
-    ))
-    story.append(Paragraph("P(t) = A_0 + \\sum_{n=1}^{N} A_n \\cos\\left(\\omega_n t + \\phi_n\\right) = A_0 + \\sum_{n=1}^{N} \\left( a_n \\cos(\\omega_n t) + b_n \\sin(\\omega_n t) \\right)", formula_style))
-    story.append(Paragraph(
-        "Where the angular frequencies $\\omega_n$ correspond directly to astronomical cyclic periodicities: "
-        "$\\omega_n = 2\\pi / T_n$. The foundational periods $T_n$ are derived from orbital harmonics:<br/>"
-        "• <b>Fast Cycles:</b> Lunar synodic month ($T_1 = 29.53$ days), Mercury orbit ($T_2 = 87.97$ days), Mars synodic cycle ($T_3 = 779.9$ days).<br/>"
-        "• <b>Macro Cycles:</b> Jupiter-Saturn synodic conjunction cycle ($T_4 = 19.86$ years), Saturn-Uranus cycle ($T_5 = 45.36$ years).",
+        "Modern academic finance assumes prices follow Geometric Brownian Motion (GBM): dP(t) = μ P dt + σ P dW. "
+        "Gann proved empirically that drift and volatility are deterministic composite periodicities. "
+        "Price movement represents a multi-frequency harmonic wave governed by Fourier expansion:",
         body_style
     ))
 
-    story.append(Paragraph("2.3 Constructive and Destructive Interference Patterns", h2_style))
+    card_fourier = make_formula_card(
+        "Law of Vibration Continuous Wave Series",
+        "P(t) = A₀ + ∑ [ Aₙ · cos(ωₙ t + φₙ) ] = A₀ + ∑ [ aₙ · cos(ωₙ t) + bₙ · sin(ωₙ t) ]",
+        [
+            "P(t): Market price at time t",
+            "A₀: Equilibrium price center (DC baseline component)",
+            "Aₙ: Harmonic amplitude of the n-th cyclical wave",
+            "ωₙ: Angular frequency = 2π / Tₙ (where Tₙ represents astronomical orbital periods)",
+            "φₙ: Initial phase angle of the celestial cycle at epoch t = 0"
+        ],
+        "Fast Cycles: Lunar synodic month (T₁ = 29.53d), Mercury orbit (T₂ = 87.97d), Mars synodic cycle (T₃ = 779.9d). "
+        "Macro Cycles: Jupiter-Saturn synodic conjunction (T₄ = 19.86y), Saturn-Uranus cycle (T₅ = 45.36y)."
+    )
+    story.append(card_fourier)
+    story.append(Spacer(1, 6))
+
+    story.append(Paragraph("2.3 Constructive & Destructive Wave Interference Mechanics", h2_style))
     story.append(Paragraph(
-        "When two harmonic cycle frequencies converge with identical phase angles ($\\phi_A = \\phi_B$), their amplitudes superimpose constructively:<br/>"
-        "<code>A_{total} = \\sqrt{A_1^2 + A_2^2 + 2 A_1 A_2 \\cos(\\phi_1 - \\phi_2)}</code><br/>"
-        "When $\\cos(\\phi_1 - \\phi_2) = 1$ (Phase alignment / Conjunction), amplitude doubles, triggering an explosive expansion in volatility and momentum. "
-        "Conversely, when $\\cos(\\phi_1 - \\phi_2) = -1$ (Opposition / $180^\\circ$ Phase clash), kinetic force dissipates, creating an energy vacuum that produces dead consolidations or false breakout traps.",
+        "When two planetary harmonic frequencies converge, their amplitudes superimpose according to wave interference laws:",
         body_style
     ))
+
+    card_interf = make_formula_card(
+        "Harmonic Wave Superposition & Interference",
+        "A_total = √[ A₁² + A₂² + 2 A₁ A₂ · cos(φ₁ − φ₂) ]",
+        [
+            "Phase Coherence (Conjunction 0°): cos(φ₁ − φ₂) = +1  ⇒  A_total = A₁ + A₂ (Maximum Constructive Breakout)",
+            "Phase Polarity (Opposition 180°): cos(φ₁ − φ₂) = −1  ⇒  A_total = |A₁ − A₂| (Trend Exhaustion / Dissipation)",
+            "Orthogonal Quadrature (Square 90°/270°): cos(φ₁ − φ₂) = 0  ⇒  A_total = √(A₁² + A₂²) (Maximum Cyclic Shear Stress)"
+        ],
+        "Phase alignment produces explosive kinetic breakouts, whereas phase clashes produce violent whipsaws or trend termination."
+    )
+    story.append(card_interf)
 
     story.append(PageBreak())
 
@@ -281,58 +376,59 @@ def build_exhaustive_textbook():
     # =========================================================================
     story.append(Paragraph("CHAPTER 3: The Square of Nine — Arithmetic Spirals, Coordinate Derivations & Price Ladders", h1_style))
     
-    story.append(Paragraph("3.1 Archimedean Spiral Mechanics & Geometric Construction", h2_style))
+    story.append(Paragraph("3.1 Geometric Construction: The Odd-Square Base Axis (0° Ray)", h2_style))
     story.append(Paragraph(
-        "The Square of Nine is a circular-square matrix built upon an arithmetic spiral. It translates linear numerical progressions into angular polar vectors. "
-        "The matrix originates with the number <b>1</b> at the center coordinate $(0,0)$. Numbers spiral outward anti-clockwise: "
-        "the first concentric square ring terminates at 9 ($3^2$), the second ring at 25 ($5^2$), the third at 49 ($7^2$), the fourth at 81 ($9^2$), "
-        "and the $n$-th ring at $(2n + 1)^2$.",
-        body_style
-    ))
-    story.append(Paragraph(
-        "The geometry exhibits a foundational mathematical law: <b>Moving once around the entire 360° circle is equivalent to adding 2.0 to the square root of the initial number.</b><br/>"
-        "Consider the corner diagonal sequence: $1, 9, 25, 49, 81, 121, 169, 225...$<br/>"
-        "Their square roots are: $\\sqrt{1}=1, \\sqrt{9}=3, \\sqrt{25}=5, \\sqrt{49}=7, \\sqrt{81}=9, \\sqrt{121}=11...$<br/>"
-        "Each full revolution of 360° adds exactly <b>+2.0</b> to the root. Therefore, any intermediate angle $\\theta$ represents a proportional root advance of <b>$\\Delta \\sqrt{P} = \\theta / 180.0$</b>.",
+        "The Gann Wheel (Square of Nine) is an Archimedean arithmetic spiral. The matrix originates with number <b>1</b> at the center coordinate (0,0). "
+        "Numbers wind clockwise (or anti-clockwise): Ring 1 terminates at 9 (3²), Ring 2 at 25 (5²), Ring 3 at 49 (7²), Ring 4 at 81 (9²), "
+        "and Ring k at <b>(2k + 1)²</b>. These odd integer squares strictly anchor the <b>0° Base Axis</b>.<br/>"
+        "Their square roots are: √1 = 1, √9 = 3, √25 = 5, √49 = 7, √81 = 9, √121 = 11...<br/>"
+        "Each full revolution of 360° adds exactly <b>+2.0</b> to the square root. Therefore, any intermediate angle θ represents a root displacement of: "
+        "<b>Δ√P = θ / 180.0</b>.",
         body_style
     ))
 
-    story.append(Paragraph("3.2 Complete Mathematical Derivations: Bidirectional Conversion", h2_style))
-    story.append(Paragraph("<b>Derivation 1: Converting Any Market Price to Its Exact Square of Nine Angle (Price → Angle):</b>", body_bold))
-    story.append(Paragraph("\\theta(P) = \\left( (\\sqrt{P} - 1.0) \\pmod 2 \\right) \\times 180^\\circ \\quad \\text{where } \\theta \\in [0^\\circ, 360^\\circ)", formula_style))
-    story.append(Paragraph(
-        "<b>Step-by-Step Rigorous Mathematical Derivation:</b><br/>"
-        "1. In Gann's authentic Square-of-Nine spiral, odd integer squares ($1, 9, 25, 49, 81...$) anchor the $0^\\circ$ base axis with square roots $\\sqrt{P} = 2k + 1$.<br/>"
-        "2. Subtracting $1.0$ aligns the odd roots to even integers: $(2k + 1) - 1 = 2k$.<br/>"
-        "3. Taking modulo $2.0$ yields the fractional rotation along the 360° circle: $(\\sqrt{P} - 1.0) \\pmod 2 \\in [0, 2)$.<br/>"
-        "4. Multiplying by $180^\\circ$ yields the exact wheel angle $\\theta \\in [0^\\circ, 360^\\circ)$.",
-        body_style
-    ))
+    story.append(Paragraph("3.2 Complete Mathematical Derivations: Bidirectional Conversions", h2_style))
 
-    story.append(Paragraph("<b>Derivation 2: Converting Any Angular Degree into Exact Support & Resistance Ladders (Angle → Price):</b>", body_bold))
-    story.append(Paragraph("P(k, \\theta) = \\left( 2k + 1.0 + \\frac{\\theta \\pmod{360^\\circ}}{180^\\circ} \\right)^2, \\quad k = \\left\\lfloor \\frac{\\sqrt{P_{\\text{ref}}} - 1.0 - (\\theta / 180^\\circ)}{2} \\right\\rfloor", formula_style))
-    story.append(Paragraph(
-        "Where $P_{\\text{ref}}$ is the active reference price and $k$ is the concentric spiral octave ring.<br/>"
-        "• Fixed Wheel Support Rung: $P_{\\text{sup}} = \\left( 2k + 1.0 + \\frac{\\theta}{180^\\circ} \\right)^2$<br/>"
-        "• Fixed Wheel Resistance Rung: $P_{\\text{res}} = \\left( 2(k + 1) + 1.0 + \\frac{\\theta}{180^\\circ} \\right)^2$<br/>"
-        "• Relative Root Projections (Quadratic Frequency): $P_{\\pm \\theta} = \\left( \\sqrt{P_{\\text{ref}}} \\pm \\frac{\\theta}{180^\\circ} \\right)^2$<br/>"
-        "  - Square ($+90^\\circ$): $P_{+90^\\circ} = \\left( \\sqrt{P} + 0.50 \\right)^2$<br/>"
-        "  - Trine ($+120^\\circ$): $P_{+120^\\circ} = \\left( \\sqrt{P} + \\frac{2}{3} \\right)^2$<br/>"
-        "  - Opposition ($+180^\\circ$): $P_{+180^\\circ} = \\left( \\sqrt{P} + 1.00 \\right)^2$",
-        body_style
-    ))
+    card_p_to_deg = make_formula_card(
+        "Derivation 1: Price to Square of Nine Wheel Degree (Price → Angle)",
+        "θ(P) = [ (√P − 1.0) mod 2.0 ] × 180°    for θ ∈ [0°, 360°)",
+        [
+            "Step 1: Compute the square root of spot market price P: r = √P",
+            "Step 2: Subtract the center odd-root offset (1.0): r − 1.0",
+            "Step 3: Extract ring rotation coordinate via modulo 2.0: rot = (r − 1.0) mod 2.0 ∈ [0.0, 2.0)",
+            "Step 4: Scale rotation coordinate to circular degrees: θ = rot × 180.0°"
+        ],
+        "Odd squares (1, 9, 25, 49) evaluate to θ = 0°. Even squares (4, 16, 36, 64) evaluate to θ = 180° (Opposition axis). "
+        "Half-integers (1.5, 3.5, 5.5) evaluate to θ = 90° (Cardinal square axis)."
+    )
+    story.append(card_p_to_deg)
+    story.append(Spacer(1, 5))
+
+    card_deg_to_p = make_formula_card(
+        "Derivation 2: Angular Degree to Fixed Wheel Price Rungs (Angle → Price)",
+        "P(k, θ) = [ 2k + 1.0 + (θ mod 360°) / 180° ]²,    k = ⌊ (√P_ref − 1.0 − θ / 180°) / 2 ⌋",
+        [
+            "k: Concentric spiral octave integer = ⌊ (√P_ref − 1.0 − θ/180°) / 2 ⌋",
+            "Fixed Support Rung: P_sup = [ 2k + 1.0 + (θ / 180°) ]²   (where P_sup ≤ P_ref)",
+            "Fixed Resistance Rung: P_res = [ 2(k + 1) + 1.0 + (θ / 180°) ]²   (where P_res > P_ref)",
+            "Relative Quadratic Frequency: P_±θ = ( √P_ref ± θ / 180° )²"
+        ],
+        "Relative harmonic angles: Square (+90°): P_+90° = (√P + 0.50)². Trine (+120°): P_+120° = (√P + ⅔)². "
+        "Opposition (+180°): P_+180° = (√P + 1.00)². Square Support (−90°): P_−90° = (√P − 0.50)²."
+    )
+    story.append(card_deg_to_p)
+    story.append(Spacer(1, 5))
 
     story.append(Paragraph("3.3 Live Indian Market Worked Example: NSE Nifty 50 Index", h2_style))
     story.append(Paragraph(
-        "Let active Nifty 50 spot price $P = 24,350.00$.<br/>"
-        "1. Compute root: $\\sqrt{24350} = 156.0448653$<br/>"
-        "2. Subtract odd origin and take modulo 2: $(156.0448653 - 1.0) \\pmod 2 = 1.0448653$<br/>"
-        "3. Wheel Longitude: $\\theta = 1.0448653 \\times 180^\\circ = \\mathbf{188.0758^\\circ}$ (corresponds to $08^\\circ\\text{Libra }05'$).<br/>"
-        "4. Calculate $180^\\circ$ Opposition Price Ceiling (Resistance):<br/>"
-        "   $P_{\\text{opp}} = \\left( \\sqrt{24350} + 1.0 \\right)^2 = (156.044865 + 1.0)^2 = (157.044865)^2 = \\mathbf{24,663.09}$<br/>"
-        "5. Calculate $90^\\circ$ Square Support Level:<br/>"
-        "   $P_{-90^\\circ} = \\left( \\sqrt{24350} - 0.5 \\right)^2 = (155.544865)^2 = \\mathbf{24,194.20}$<br/>"
-        "The index is locked in a verified harmonic trading range bounded by 24,194.20 support and 24,663.09 resistance.",
+        "Let active Nifty 50 spot price <b>P = 24,350.00</b>.<br/>"
+        "1. Compute square root: √24350 = <b>156.044865</b><br/>"
+        "2. Subtract odd origin and take modulo 2: (156.044865 − 1.0) mod 2.0 = <b>1.044865</b><br/>"
+        "3. Wheel Longitude: θ = 1.044865 × 180° = <b>188.076°</b> (corresponds to 08° Libra 05')<br/>"
+        "4. Calculate Octave Integer: k = ⌊(156.044865 − 1.0 − 1.044865) / 2⌋ = ⌊154.0 / 2⌋ = <b>77</b><br/>"
+        "5. Quadrant Resistance (+90°): P_+90° = (156.044865 + 0.50)² = (156.544865)² = <b>24,506.29</b><br/>"
+        "6. Opposition Ceiling (+180°): P_+180° = (156.044865 + 1.00)² = (157.044865)² = <b>24,663.09</b><br/>"
+        "7. Quadrant Support (−90°): P_−90° = (156.044865 − 0.50)² = (155.544865)² = <b>24,194.20</b>",
         body_style
     ))
 
@@ -348,16 +444,23 @@ def build_exhaustive_textbook():
         "In his private master coursework (notably his analysis of <i>May Soybeans</i> and <i>Santos Coffee</i>), "
         "Gann revealed the direct correspondence between physical planetary orbital degrees and price increments. "
         "Every planet traces a 360° circle across the tropical ecliptic. When plotted against time, a planet's longitude creates a continuous "
-        "sinusoidal price curve. Multiplying this curve by a harmonic instrument scaling constant $S$ produces an active astronomical support/resistance line:",
+        "sinusoidal price curve. Multiplying this curve by a harmonic instrument scaling constant S produces an active astronomical support/resistance line:",
         body_style
     ))
-    story.append(Paragraph("P_{\\text{Planet}}(t) = \\left( \\lambda_{\\text{ecliptic}}(t) + 360^\\circ \\times n \\right) \\times S", formula_style))
-    story.append(Paragraph(
-        "• <b>Base Metal Multiplier ($S=1.0$):</b> Used for MCX Copper and Zinc futures where 1 point of price equals 1 degree of longitude.<br/>"
-        "• <b>Energy Multiplier ($S=10.0$ or $100.0$):</b> Applied to MCX Crude Oil futures (e.g. $6,120 = 17 \\times 360^\\circ + 0^\\circ$).<br/>"
-        "• <b>Price Squaring:</b> When market price intersects the planetary line, time has squared with price, triggering a trend reversal.",
-        body_style
-    ))
+
+    card_planet = make_formula_card(
+        "Planetary Longitude to Continuous Price Line Mapping",
+        "P_Planet(t) = [ λ_ecliptic(t) + 360° × n ] × Scale",
+        [
+            "λ_ecliptic(t): Geocentric tropical longitude of target planet ∈ [0°, 360°)",
+            "n: Integer circle cycle multiple (0, 1, 2, ...)",
+            "Scale: Instrument conversion constant (Scale = 1.0 for metals, 10.0 or 100.0 for energy/indices)",
+            "Price Squaring Event: Occurs whenever Spot Market Price(t) = P_Planet(t)"
+        ],
+        "Base Metals (MCX Copper/Zinc): Scale = 1.0 pt/deg. Energy (MCX Crude Oil): Scale = 10.0 or 100.0 pts/deg."
+    )
+    story.append(card_planet)
+    story.append(Spacer(1, 5))
 
     story.append(Paragraph("4.2 Scientific Geocentric Aspect Hierarchy & Weighting Mechanics", h2_style))
     story.append(Paragraph(
@@ -391,13 +494,13 @@ def build_exhaustive_textbook():
         [
             Paragraph("<b>Trine (△)</b>", tc_style),
             Paragraph("120° / 240°<br/>(±1.0° orb)", tc_style),
-            Paragraph("Equilateral triangular resonance (1/3 circle). Laminar, friction-free cyclic flow.", tc_style),
+            Paragraph("Equilateral triangular resonance (⅓ circle). Laminar, friction-free cyclic flow.", tc_style),
             Paragraph("<b>Harmonic Acceleration:</b> Add size to prevailing trend positions. High probability of uninterrupted trend continuations.", tc_style)
         ],
         [
             Paragraph("<b>Planetary Station</b>", tc_style),
             Paragraph("dλ/dt = 0<br/>(Velocity zero)", tc_style),
-            Paragraph("Geocentric apparent velocity halts as Earth's orbital vector overtakes the target body (Retrograde ↔ Direct).", tc_style),
+            Paragraph("Geocentric apparent velocity halts as Earth's orbital vector overtakes target body (Retrograde ↔ Direct).", tc_style),
             Paragraph("<b>Master Swing Pivot:</b> Major multi-week highs and lows form within ±3 trading days of outer planet station dates.", tc_style)
         ]
     ]
@@ -406,8 +509,8 @@ def build_exhaustive_textbook():
         ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#0f2942")),
         ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#cbd5e0")),
         ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor("#f8f9f9")]),
-        ('TOPPADDING', (0,0), (-1,-1), 3),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+        ('TOPPADDING', (0,0), (-1,-1), 2.5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 2.5),
         ('LEFTPADDING', (0,0), (-1,-1), 4),
         ('RIGHTPADDING', (0,0), (-1,-1), 4),
     ]))
@@ -425,65 +528,84 @@ def build_exhaustive_textbook():
         "W.D. Gann asserted unequivocally that the <b>50% Midpoint</b> is the supreme axis of balance in the financial universe. "
         "In physical mechanics, when opposing forces on a lever arm balance, the fulcrum sits at equilibrium. "
         "In financial markets, the daily price range and the temporal trading duration both possess an exact 50% fulcrum:<br/>"
-        "• <b>Price Equilibrium Axis:</b> $P_{\\text{mid}} = (\\text{High} + \\text{Low}) / 2$. "
-        "When price trades above $P_{\\text{mid}}$, buyers maintain control and price vibrates upward toward the 75% quartile. "
-        "When price falls below $P_{\\text{mid}}$, institutional distribution dominates.<br/>"
-        "• <b>Temporal Equilibrium Axis:</b> The halfway time point of any session ($T_{\\text{mid}} = T_{\\text{open}} + \\text{Duration} / 2$) "
-        "represents the thermodynamic exhaustion of morning momentum. Institutional morning orders clear, and afternoon repositioning begins.",
+        "• <b>Price Equilibrium Axis:</b> P_mid = (High + Low) / 2. Above P_mid, buyers maintain control; below P_mid, sellers dominate.<br/>"
+        "• <b>Temporal Equilibrium Axis:</b> The halfway time point (T_mid = T_open + Duration / 2) marks the exhaustion of morning momentum.",
         body_style
     ))
 
     story.append(Paragraph("5.2 Complete Mathematical Derivation of the 360° Circular Intraday Model", h2_style))
-    story.append(Paragraph(
-        "Gann mapped the operational duration of any exchange session to a 360° circle. The session midpoint is designated as the <b>0° Balance Center Axis</b>. "
-        "Time expands bidirectionally: Left (-θ, Past/Morning) and Right (+θ, Future/Afternoon):",
-        body_style
-    ))
-    story.append(Paragraph("T_{\\text{Left}}(-\\theta) = T_{\\text{mid}} - \\left( \\theta \\times \\frac{\\text{Duration}}{360^\\circ} \\right), \\quad T_{\\text{Right}}(+\\theta) = T_{\\text{mid}} + \\left( \\theta \\times \\frac{\\text{Duration}}{360^\\circ} \\right)", formula_style))
+
+    card_time_node = make_formula_card(
+        "360° Bidirectional Intraday Time Node Model",
+        "T_Left(−θ) = T_mid − [ θ × (Duration / 360°) ],    T_Right(+θ) = T_mid + [ θ × (Duration / 360°) ]",
+        [
+            "T_mid: Session 50% temporal midpoint (0° Balance Center Axis)",
+            "Duration: Total operational session length in minutes (NSE = 375m, MCX = 870m, Solar = 1440m)",
+            "T_Left(−θ): Past/Morning harmonic wave node (exhaustion of initial moves)",
+            "T_Right(+θ): Future/Afternoon harmonic wave node (breakout / reversal triggers)"
+        ],
+        "NSE Equity Scale: 1° = 375 / 360 = 1.0417 min (62.5 sec). MCX Commodity Scale: 1° = 870 / 360 = 2.4167 min (145.0 sec)."
+    )
+    story.append(card_time_node)
+    story.append(Spacer(1, 4))
+
+    card_method6 = make_formula_card(
+        "Method 6: Dual-Space Gann Price Equilibrium & Harmonic Octaves",
+        "P_Range_Support(−θ) = P₅₀ − (θ / 360°) × Range,    P_Range_Resist(+θ) = P₅₀ + (θ / 360°) × Range",
+        [
+            "Linear Range Octaves: P_Range(±θ) = P₅₀ ± (θ / 180°) × (Range / 2)",
+            "  - 45° (⅛ Circle) = ⅛ Range offset (37.5% Support, 62.5% Resistance)",
+            "  - 90° (¼ Circle) = ¼ Range offset (25.0% Support, 75.0% Resistance)",
+            "  - 180° (½ Circle) = ½ Range offset (Reaches Absolute Day Low and Day High)",
+            "Square of Nine Quadratic Frequencies: P_Sq9_Sup(−θ) = [ max(0, √P₅₀ − θ / 180°) ]²,  P_Sq9_Res(+θ) = [ √P₅₀ + θ / 180° ]²"
+        ],
+        "Linear range octaves divide the physical price bracket; Square-of-Nine quadratic roots project continuous frequency vibration."
+    )
+    story.append(card_method6)
+    story.append(Spacer(1, 4))
 
     story.append(Paragraph("5.3 Comprehensive Indian Market Harmonics Timetable", h2_style))
     
     harm_full_data = [
         [Paragraph("Harmonic Division", th_style), Paragraph("Angle (θ)", th_style), Paragraph("NSE Equity Time (375m)<br/>1° = 1.0417 min (62.5s)", th_style), Paragraph("MCX Commodity Time (870m)<br/>1° = 2.4167 min (145.0s)", th_style), Paragraph("Solar Noon Cycle (1440m)<br/>1° = 4.0000 min (240.0s)", th_style)],
-        [Paragraph("<b>0° Balance Axis</b>", tc_style), Paragraph("<b>0° (MID)</b>", tc_style), Paragraph("<b>★ 12:22:30 IST</b>", tc_style), Paragraph("<b>★ 16:15:00 IST</b>", tc_style), Paragraph("<b>★ 12:22:20 IST</b>", tc_style)],
-        [Paragraph("1/24 Circle", tc_style), Paragraph("15°", tc_style), Paragraph("12:06:52 / 12:38:07 IST", tc_style), Paragraph("15:38:45 / 16:51:15 IST", tc_style), Paragraph("11:22:20 / 13:22:20 IST", tc_style)],
-        [Paragraph("1/12 Circle", tc_style), Paragraph("30°", tc_style), Paragraph("11:51:15 / 12:53:45 IST", tc_style), Paragraph("15:02:30 / 17:27:30 IST", tc_style), Paragraph("10:22:20 / 14:22:20 IST", tc_style)],
-        [Paragraph("<b>1/8 Circle (Octile)</b>", tc_style), Paragraph("<b>45°</b>", tc_style), Paragraph("<b>11:35:37 / 13:09:22 IST</b>", tc_style), Paragraph("<b>14:26:15 / 18:03:45 IST</b>", tc_style), Paragraph("<b>09:22:20 / 15:22:20 IST</b>", tc_style)],
-        [Paragraph("1/6 Circle (Sextile)", tc_style), Paragraph("60°", tc_style), Paragraph("11:20:00 / 13:25:00 IST", tc_style), Paragraph("13:50:00 / 18:40:00 IST", tc_style), Paragraph("08:22:20 / 16:22:20 IST", tc_style)],
-        [Paragraph("1/5 Circle (Quintile)", tc_style), Paragraph("72°", tc_style), Paragraph("11:07:30 / 13:37:30 IST", tc_style), Paragraph("13:21:00 / 19:09:00 IST", tc_style), Paragraph("07:34:20 / 17:10:20 IST", tc_style)],
-        [Paragraph("<b>1/4 Circle (Square)</b>", tc_style), Paragraph("<b>90°</b>", tc_style), Paragraph("<b>10:48:45 / 13:56:15 IST</b>", tc_style), Paragraph("<b>12:37:30 / 19:52:30 IST</b>", tc_style), Paragraph("<b>06:22:20 / 18:22:20 IST</b>", tc_style)],
-        [Paragraph("3/10 Circle", tc_style), Paragraph("108°", tc_style), Paragraph("10:30:00 / 14:15:00 IST", tc_style), Paragraph("11:54:00 / 20:36:00 IST", tc_style), Paragraph("05:10:20 / 19:34:20 IST", tc_style)],
-        [Paragraph("<b>1/3 Circle (Trine)</b>", tc_style), Paragraph("<b>120°</b>", tc_style), Paragraph("<b>10:17:30 / 14:27:30 IST</b>", tc_style), Paragraph("<b>11:25:00 / 21:05:00 IST</b>", tc_style), Paragraph("<b>04:22:20 / 20:22:20 IST</b>", tc_style)],
-        [Paragraph("3/8 Circle", tc_style), Paragraph("135°", tc_style), Paragraph("10:01:52 / 14:43:07 IST", tc_style), Paragraph("10:48:45 / 21:41:15 IST", tc_style), Paragraph("03:22:20 / 21:22:20 IST", tc_style)],
-        [Paragraph("2/5 Circle (Master 144)", tc_style), Paragraph("144°", tc_style), Paragraph("09:52:30 / 14:52:30 IST", tc_style), Paragraph("10:27:00 / 22:03:00 IST", tc_style), Paragraph("02:46:20 / 21:58:20 IST", tc_style)],
-        [Paragraph("5/12 Circle", tc_style), Paragraph("150°", tc_style), Paragraph("09:46:15 / 14:58:45 IST", tc_style), Paragraph("10:12:30 / 22:17:30 IST", tc_style), Paragraph("02:22:20 / 22:22:20 IST", tc_style)],
-        [Paragraph("<b>1/2 Circle (Opp)</b>", tc_style), Paragraph("<b>180°</b>", tc_style), Paragraph("<b>09:15:00 / 15:30:00 IST</b>", tc_style), Paragraph("<b>09:00:00 / 23:30:00 IST</b>", tc_style), Paragraph("<b>00:22:20 / 00:22:20 IST</b>", tc_style)]
+        [Paragraph("<b>0° Balance Axis</b>", tc_style), Paragraph("<b>0° (MID)</b>", tc_style), Paragraph("<b>★ 12:22:30 IST</b>", tc_style), Paragraph("<b>★ 16:15:00 IST</b>", tc_style), Paragraph("<b>★ 12:22:28 IST</b>", tc_style)],
+        [Paragraph("1/24 Circle", tc_style), Paragraph("15°", tc_style), Paragraph("12:06:52 / 12:38:07 IST", tc_style), Paragraph("15:38:45 / 16:51:15 IST", tc_style), Paragraph("11:22:28 / 13:22:28 IST", tc_style)],
+        [Paragraph("1/12 Circle", tc_style), Paragraph("30°", tc_style), Paragraph("11:51:15 / 12:53:45 IST", tc_style), Paragraph("15:02:30 / 17:27:30 IST", tc_style), Paragraph("10:22:28 / 14:22:28 IST", tc_style)],
+        [Paragraph("<b>1/8 Circle (Octile)</b>", tc_style), Paragraph("<b>45°</b>", tc_style), Paragraph("<b>11:35:37 / 13:09:22 IST</b>", tc_style), Paragraph("<b>14:26:15 / 18:03:45 IST</b>", tc_style), Paragraph("<b>09:22:28 / 15:22:28 IST</b>", tc_style)],
+        [Paragraph("1/6 Circle (Sextile)", tc_style), Paragraph("60°", tc_style), Paragraph("11:20:00 / 13:25:00 IST", tc_style), Paragraph("13:50:00 / 18:40:00 IST", tc_style), Paragraph("08:22:28 / 16:22:28 IST", tc_style)],
+        [Paragraph("<b>1/4 Circle (Square)</b>", tc_style), Paragraph("<b>90°</b>", tc_style), Paragraph("<b>10:48:45 / 13:56:15 IST</b>", tc_style), Paragraph("<b>12:37:30 / 19:52:30 IST</b>", tc_style), Paragraph("<b>06:22:28 / 18:22:28 IST</b>", tc_style)],
+        [Paragraph("<b>1/3 Circle (Trine)</b>", tc_style), Paragraph("<b>120°</b>", tc_style), Paragraph("<b>10:17:30 / 14:27:30 IST</b>", tc_style), Paragraph("<b>11:25:00 / 21:05:00 IST</b>", tc_style), Paragraph("<b>04:22:28 / 20:22:28 IST</b>", tc_style)],
+        [Paragraph("3/8 Circle", tc_style), Paragraph("135°", tc_style), Paragraph("10:01:52 / 14:43:07 IST", tc_style), Paragraph("10:48:45 / 21:41:15 IST", tc_style), Paragraph("03:22:28 / 21:22:28 IST", tc_style)],
+        [Paragraph("2/5 Circle (Master 144)", tc_style), Paragraph("144°", tc_style), Paragraph("09:52:30 / 14:52:30 IST", tc_style), Paragraph("10:27:00 / 22:03:00 IST", tc_style), Paragraph("02:46:28 / 21:58:28 IST", tc_style)],
+        [Paragraph("<b>1/2 Circle (Opp)</b>", tc_style), Paragraph("<b>180°</b>", tc_style), Paragraph("<b>09:15:00 / 15:30:00 IST</b>", tc_style), Paragraph("<b>09:00:00 / 23:30:00 IST</b>", tc_style), Paragraph("<b>00:22:28 / 00:22:28 IST</b>", tc_style)]
     ]
     t_harm_full = Table(harm_full_data, colWidths=[90, 54, 120, 120, 120])
     t_harm_full.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#0f2942")),
         ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#cbd5e0")),
         ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor("#f8f9f9")]),
-        ('TOPPADDING', (0,0), (-1,-1), 2.5),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 2.5),
+        ('TOPPADDING', (0,0), (-1,-1), 2),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 2),
         ('LEFTPADDING', (0,0), (-1,-1), 4),
         ('RIGHTPADDING', (0,0), (-1,-1), 4),
     ]))
     story.append(t_harm_full)
+    story.append(Spacer(1, 4))
 
     story.append(Paragraph("5.4 Astronomical True Solar Noon & NOAA Equation of Time Calibration", h2_style))
-    story.append(Paragraph(
-        "Gann emphasized Natural Time over civil clock time. True Solar Noon marks the moment the Sun crosses the observer's local celestial meridian. "
-        "For Mumbai (72.825° E, home of NSE and BSE), the calculation requires two distinct astronomical corrections:<br/>"
-        "1. <b>Meridian Longitudinal Offset:</b> IST is based on the 82.5° E meridian. Mumbai lies 9.675° West of the reference meridian. "
-        "At 4 minutes per degree: $\\text{Offset} = (82.5^\\circ - 72.825^\\circ) \\times 4\\text{ min} = \\mathbf{+38.700\\text{ minutes}}$ (38 min 42 sec solar lag).<br/>"
-        "2. <b>NOAA Spencer Equation of Time (EoT):</b> The rigorous Fourier series expansion accurate to within 2 seconds:<br/>"
-        "   <code>\\text{EoT}(\\Gamma) = 229.18 \\times [0.000075 + 0.001868\\cos\\Gamma - 0.032077\\sin\\Gamma - 0.014615\\cos(2\\Gamma) - 0.040849\\sin(2\\Gamma)]</code><br/>"
-        "   where $\\Gamma = \\frac{2\\pi}{365.25}(d - 1)$ radians is the fractional year coordinate for day of year $d$.<br/>"
-        "3. <b>True Solar Noon:</b> $\\text{Noon}_{\\text{IST}} = 12:00 + 38.70\\text{ min} - \\text{EoT}$. "
-        "On late October trading dates (day 301), $\\text{EoT} \\approx +16.22\\text{ min}$, producing True Solar Noon at **12:22:28 IST**—aligning within 2 seconds of the NSE 12:22:30 IST session midpoint.",
-        body_style
-    ))
+
+    card_eot = make_formula_card(
+        "NOAA Spencer Equation of Time & Mumbai True Solar Noon",
+        "EoT(Γ) = 229.18 × [0.000075 + 0.001868 cos Γ − 0.032077 sin Γ − 0.014615 cos 2Γ − 0.040849 sin 2Γ]",
+        [
+            "Γ: Fractional year coordinate in radians = (2π / 365.25) × (d − 1)   for day of year d",
+            "Mumbai Longitude: 72.825° E  |  IST Standard Meridian: 82.500° E (UTC+05:30)",
+            "Meridian Lag Offset: (82.5° − 72.825°) × 4.0 min/deg = +38.700 minutes (38m 42s)",
+            "True Solar Noon (IST) = 12:00:00 + 38.700 min − EoT(Γ)"
+        ],
+        "On late October trading dates (day 301), EoT ≈ +16.22 min, producing True Solar Noon in Mumbai at exactly 12:22:28 IST—aligning within 2 seconds of the NSE 12:22:30 IST session midpoint."
+    )
+    story.append(card_eot)
 
     story.append(PageBreak())
 
@@ -502,7 +624,7 @@ def build_exhaustive_textbook():
         "<b>Market Setup:</b> Nifty 50 Tuesday Weekly Expiry. The index opened at 24,310, established an opening 1-hour low at 24,250 and morning high at 24,450.<br/>"
         "<b>Step 1 (Macro Ephemeris Analysis):</b> NASA JPL Horizons client flagged a geocentric <i>Sun Trine Jupiter (120°)</i> during session hours. "
         "Square of Nine ladder calculated major resistance at <b>24,463</b> and support at <b>24,294</b>.<br/>"
-        "<b>Step 2 (50% Price Equilibrium):</b> $P_{\\text{mid}} = (24450 + 24250) / 2 = \\mathbf{24,350.00}$. The line of control was established at 24,350.<br/>"
+        "<b>Step 2 (50% Price Equilibrium):</b> P_mid = (24450 + 24250) / 2 = <b>24,350.00</b>. The line of control was established at 24,350.<br/>"
         "<b>Step 3 (Temporal Midpoint Test at 12:22:30 IST):</b> At 12:20–12:25 IST, spot Nifty pulled back to 24,352, tested the 50% price equilibrium, "
         "and formed a bullish hammer on the 1-minute chart. The 24,350 Call option was purchased at Rs. 65.00.<br/>"
         "<b>Step 4 (Target Execution at 90° and 120° Nodes):</b><br/>"
@@ -516,9 +638,9 @@ def build_exhaustive_textbook():
     story.append(Paragraph(
         "<b>Market Setup:</b> MCX Crude Oil Active Contract. Intraday range: High 6,240, Low 6,080.<br/>"
         "<b>Step 1 (Planetary Longitude Mapping):</b> In Gann astro-commodity rulership, Neptune governs oil and petroleum resources. "
-        "Neptune's geocentric longitude was at 29° Pisces ($\\lambda = 359^\\circ$). In natural 360° scaling ($S=10$), "
-        "the planetary resistance line was calculated: $P = (359^\\circ + 16 \\times 360^\\circ) = \\mathbf{6,119 \\text{ Rs/bbl}}$.<br/>"
-        "<b>Step 2 (Price Midpoint):</b> Day midpoint $P_{\\text{mid}} = (6240 + 6080) / 2 = \\mathbf{6,160.00}$.<br/>"
+        "Neptune's geocentric longitude was at 29° Pisces (λ = 359°). In natural 360° scaling (Scale = 10), "
+        "the planetary resistance line was calculated: P = (359° + 16 × 360°) = <b>6,119 Rs/bbl</b>.<br/>"
+        "<b>Step 2 (Price Midpoint):</b> Day midpoint P_mid = (6240 + 6080) / 2 = <b>6,160.00</b>.<br/>"
         "<b>Step 3 (MCX Temporal Midpoint at 16:15 IST):</b> At 16:15 IST (US DST session midpoint), price broke below the 6,160 equilibrium, "
         "confirming institutional distribution. A short futures position was initiated at 6,155.<br/>"
         "<b>Step 4 (Evening 90° Quadrature at 19:52 IST):</b> At 19:52 IST, US inventory data triggered a plunge to 6,120, "
@@ -529,9 +651,9 @@ def build_exhaustive_textbook():
     story.append(Paragraph("6.3 Case Study 3: MCX Copper Futures (Base Metal Venus Harmonic Octave)", h2_style))
     story.append(Paragraph(
         "<b>Market Setup:</b> MCX Copper (Venus planetary metal rulership). Reference price: 820.00 Rs/kg.<br/>"
-        "<b>Step 1 (Square of Nine Price Octaves):</b> With reference price $P=820.00$, $\\sqrt{820} = 28.6356$. "
-        "Venus was transiting 22° Libra ($\\theta = 202^\\circ$). Square of Nine support rung: "
-        "$P = (28.6356 - 0.5)^2 = \\mathbf{791.60}$; Resistance rung: $P = (28.6356 + 0.5)^2 = \\mathbf{848.88}$.<br/>"
+        "<b>Step 1 (Square of Nine Price Octaves):</b> With reference price P = 820.00, √820 = 28.6356. "
+        "Venus was transiting 22° Libra (θ = 202°). Square of Nine support rung: "
+        "P_sup = (28.6356 − 0.50)² = <b>791.60</b>; Resistance rung: P_res = (28.6356 + 0.50)² = <b>848.88</b>.<br/>"
         "<b>Step 2 (Intraday Timing Execution):</b> At the <b>16:15 IST</b> session midpoint, copper held above the daily 50% price midpoint (818.50). "
         "Long positions were targeted into the 120° Trine time node at <b>21:05 IST</b>, exiting at 829.40 (+9.40 Rs/kg = Rs. 23,500 per lot).",
         body_style
@@ -594,6 +716,7 @@ def build_exhaustive_textbook():
 
     doc.build(story, canvasmaker=AcademicNumberedCanvas)
     print(f"Exhaustive Academic Textbook PDF successfully compiled at: {PDF_OUTPUT}")
+
 
 if __name__ == "__main__":
     build_exhaustive_textbook()

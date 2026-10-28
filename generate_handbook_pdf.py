@@ -274,9 +274,10 @@ def build_pdf():
         "The application features Gann's mathematical formulas converting planetary ecliptic degrees into exact market price rungs:",
         body_style
     ))
-    story.append(Paragraph("<b>A. Square of Nine Formula:</b> One full 360° circle advances square roots by 2.0. "
-                           "Each degree represents <code>offset = degree / 180.0</code>.", body_style))
-    story.append(Paragraph("<code>Price = (2 * k + degree / 180.0) ^ 2</code>", formula_style))
+    story.append(Paragraph("<b>A. Square of Nine Formulas:</b> One full 360° circle advances square roots by 2.0. "
+                           "Odd integer squares anchor the 0° base axis: <code>sqrt(P) = 2k + 1</code>.<br/>"
+                           "• Fixed Wheel Ray Rung: <code>Price = (2 * k + 1.0 + degree / 180.0) ^ 2</code><br/>"
+                           "• Relative Harmonic Projection: <code>Price = (sqrt(P_ref) ± degree / 180.0) ^ 2</code>", body_style))
     story.append(Paragraph("The software automatically identifies cycle index <code>k</code> based on your active LTP and outputs the exact support and resistance rungs bracketing the spot index.", body_style))
     story.append(Paragraph("<b>B. Natural 360° Wheel:</b> <code>Price Modulo 360</code> equates points directly to circular coordinates (e.g., Nifty at 24,350 = 230° Scorpio).", body_style))
 

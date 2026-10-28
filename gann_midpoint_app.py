@@ -17,13 +17,16 @@ from gann_timer.midpoint_engine import (
 )
 
 COLUMNS = [
-    ("degree", "Degree (°)", 85),
-    ("left", "Left Time (-θ Past)", 165),
-    ("right", "Right Time (+θ Future)", 165),
-    ("price_support", "Support Level (Left)", 155),
-    ("price_resist", "Resistance Level (Right)", 165),
-    ("desc", "Gann Harmonic Significance", 320),
-    ("category", "Importance", 120),
+    ("degree", "Degree (°)", 80),
+    ("fraction", "Fraction (θ/360)", 105),
+    ("left", "Left Time (-θ Past)", 145),
+    ("right", "Right Time (+θ Future)", 145),
+    ("price_support", "Range Support (-θ)", 140),
+    ("price_resist", "Range Resist (+θ)", 140),
+    ("sq9_support", "Sq9 Root Support", 135),
+    ("sq9_resist", "Sq9 Root Resist", 135),
+    ("desc", "Gann Harmonic Significance", 280),
+    ("category", "Significance", 110),
 ]
 
 
@@ -33,8 +36,8 @@ class GannMidpointApp(ctk.CTk):
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
         self.title("Gann Midpoint & 360° Time Harmonics – Indian Markets")
-        self.geometry("1300x840")
-        self.minsize(1100, 680)
+        self.geometry("1360x860")
+        self.minsize(1150, 700)
 
         self.current_result: MidpointAnalysisResult | None = None
 
@@ -355,14 +358,19 @@ class GannMidpointApp(ctk.CTk):
         if result.price_equilibrium is not None:
             metrics_text += (
                 f"\n⚖️ 50% PRICE EQUILIBRIUM: {result.price_equilibrium:.2f} pts  |  "
-                f"Range: {result.price_range:.2f} pts (High {result.price_high:.2f} / Low {result.price_low:.2f})  |  "
-                f"Scale: 1° = {(result.price_range or 0) / 360.0:.2f} pts per degree"
+                f"Range: {result.price_range:.2f} pts (High {result.price_high:.2f} / Low {result.price_low:.2f})\n"
+                f"📐 Dual Projections: Range Octaves (1° = {(result.price_range or 0) / 360.0:.3f} pts)  |  "
+                f"Square-of-Nine Root Frequencies (Δ√P = θ / 180°)"
             )
 
         if method_key == "SOLAR_NOON":
             doy = d.timetuple().tm_yday
-            eot = equation_of_time(doy)
-            metrics_text += f"\nEquation of Time (EoT): {eot:+.2f} min  |  Meridian Offset: +38.7 min (Mumbai 72.825° E vs 82.5° E IST)"
+            is_leap = (d.year % 4 == 0 and (d.year % 100 != 0 or d.year % 400 == 0))
+            eot = equation_of_time(doy, is_leap=is_leap)
+            metrics_text += (
+                f"\nEquation of Time (NOAA Spencer): {eot:+.2f} min ({eot*60:+.0f}s)  |  "
+                f"Mumbai Meridian Lag: +38.70 min (38m 42s, 72.825° E vs 82.500° E)"
+            )
 
         self.summary_metrics.configure(text=metrics_text)
 
@@ -372,18 +380,22 @@ class GannMidpointApp(ctk.CTk):
 
         for pt in result.harmonic_points:
             deg_str = f"{pt.degree:g}°"
+            frac_str = pt.fraction_ratio
             left_str = pt.time_left.strftime("%H:%M:%S IST")
             right_str = pt.time_right.strftime("%H:%M:%S IST")
 
             # Format price columns
             if pt.degree == 0.0:
                 deg_str = "0° (MID)"
+                frac_str = "0/1 (Mid)"
                 left_str = f"★ {mid_str}"
                 right_str = f"★ {mid_str}"
                 importance = "MIDPOINT OF DAY"
                 tag = "midpoint"
                 p_sup_str = f"★ {result.price_equilibrium:.2f} (50%)" if result.price_equilibrium else "–"
                 p_res_str = f"★ {result.price_equilibrium:.2f} (50%)" if result.price_equilibrium else "–"
+                sq9_sup_str = f"★ {result.price_equilibrium:.2f} (50%)" if result.price_equilibrium else "–"
+                sq9_res_str = f"★ {result.price_equilibrium:.2f} (50%)" if result.price_equilibrium else "–"
             else:
                 if pt.degree in custom_set:
                     importance = "Custom Asked"
@@ -397,11 +409,13 @@ class GannMidpointApp(ctk.CTk):
 
                 p_sup_str = f"{pt.price_left:.2f}" if pt.price_left is not None else "–"
                 p_res_str = f"{pt.price_right:.2f}" if pt.price_right is not None else "–"
+                sq9_sup_str = f"{pt.sq9_left:.2f}" if pt.sq9_left is not None else "–"
+                sq9_res_str = f"{pt.sq9_right:.2f}" if pt.sq9_right is not None else "–"
 
             self.tree.insert(
                 "",
                 "end",
-                values=(deg_str, left_str, right_str, p_sup_str, p_res_str, pt.label, importance),
+                values=(deg_str, frac_str, left_str, right_str, p_sup_str, p_res_str, sq9_sup_str, sq9_res_str, pt.label, importance),
                 tags=(tag,),
             )
 
@@ -421,7 +435,7 @@ class GannMidpointApp(ctk.CTk):
 
         with open(path, "w", newline="", encoding="utf-8-sig") as f:
             w = csv.writer(f)
-            w.writerow(["Gann Midpoint Harmonics Report"])
+            w.writerow(["Gann Midpoint Harmonics Report – Rectified Mathematical Precision"])
             w.writerow(["Method", self.current_result.method_name])
             w.writerow(["Description", self.current_result.description])
             w.writerow(["Date", self.current_result.session_date.isoformat()])
@@ -433,8 +447,14 @@ class GannMidpointApp(ctk.CTk):
                 w.writerow(["Price Range", f"{self.current_result.price_range:.2f}"])
                 w.writerow(["Price High", f"{self.current_result.price_high:.2f}"])
                 w.writerow(["Price Low", f"{self.current_result.price_low:.2f}"])
+                w.writerow(["Range Octave Scale (1 deg)", f"{(self.current_result.price_range or 0) / 360.0:.4f} pts"])
+                w.writerow(["Sq9 Root Advance (1 deg)", f"{1.0 / 180.0:.6f}"])
             w.writerow([])
-            w.writerow(["Degree", "Left Time (-deg / Morning)", "Right Time (+deg / Afternoon)", "Support Level (Left)", "Resistance Level (Right)", "Significance", "Importance"])
+            w.writerow([
+                "Degree", "Fraction (θ/360)", "Left Time (-θ Past)", "Right Time (+θ Future)",
+                "Range Support (-θ)", "Range Resist (+θ)", "Sq9 Root Support", "Sq9 Root Resist",
+                "Significance", "Significance Category"
+            ])
 
             for item_id in self.tree.get_children():
                 w.writerow(self.tree.item(item_id, "values"))

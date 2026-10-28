@@ -67,7 +67,8 @@ class GannTests(unittest.TestCase):
         lo, hi = sq9_levels(24350, 0.0)
         self.assertLessEqual(lo, 24350); self.assertGreaterEqual(hi, 24350)
         self.assertTrue(math.isclose(math.sqrt(hi) - math.sqrt(lo), 2.0))
-        self.assertAlmostEqual(math.sqrt(lo) % 2, 0.0, places=9)
+        # Authentic Gann Square-of-Nine odd-square base axis (1, 9, 25, 49 -> odd roots)
+        self.assertAlmostEqual(math.sqrt(lo) % 2, 1.0, places=9)
 
     def test_conjunction_timing(self):
         # Mars at 1°/day starting 0°, Saturn fixed at 10° -> conjunction exactly 10 days later
@@ -90,6 +91,53 @@ class GannTests(unittest.TestCase):
 
     def test_wrap(self):
         self.assertEqual(wrap180(359), -1); self.assertEqual(wrap180(181), -179)
+
+
+class MidpointHarmonicTests(unittest.TestCase):
+    def test_midpoint_engine_methods(self):
+        from gann_timer.midpoint_engine import (
+            analyze_midpoints_v2,
+            calculate_mumbai_solar_noon,
+            equation_of_time,
+            format_circle_fraction,
+        )
+
+        d = date(2026, 10, 28)
+
+        # Method 1: NSE Session
+        res1 = analyze_midpoints_v2(d, "NSE_SESSION")
+        self.assertEqual(res1.midpoint_time.strftime("%H:%M:%S"), "12:22:30")
+        self.assertAlmostEqual(res1.minutes_per_degree, 375.0 / 360.0, places=4)
+
+        # Method 3: Solar Noon (NOAA EoT accuracy)
+        eot = equation_of_time(301)  # late Oct
+        self.assertTrue(15.0 < eot < 17.0)
+        noon = calculate_mumbai_solar_noon(d)
+        self.assertEqual(noon.hour, 12)
+        self.assertTrue(20 <= noon.minute <= 25)
+
+        # Method 6: Price Equilibrium & Dual Harmonics
+        res6 = analyze_midpoints_v2(d, "PRICE_50", price_high=24450.0, price_low=24250.0)
+        self.assertEqual(res6.price_equilibrium, 24350.0)
+        self.assertEqual(res6.price_range, 200.0)
+
+        # Harmonic point at 90 deg:
+        # Range support: 24350 - 200/4 = 24300
+        # Range resist: 24350 + 200/4 = 24400
+        p90 = [p for p in res6.harmonic_points if p.degree == 90.0][0]
+        self.assertEqual(p90.fraction_ratio, "1/4")
+        self.assertAlmostEqual(p90.price_left, 24300.0, places=2)
+        self.assertAlmostEqual(p90.price_right, 24400.0, places=2)
+        self.assertAlmostEqual(p90.sq9_left, (math.sqrt(24350.0) - 0.5) ** 2, places=2)
+        self.assertAlmostEqual(p90.sq9_right, (math.sqrt(24350.0) + 0.5) ** 2, places=2)
+
+        # Fraction tests (Tharun project canonical standards)
+        self.assertEqual(format_circle_fraction(0.0), "0 (Center)")
+        self.assertEqual(format_circle_fraction(45.0), "1/8")
+        self.assertEqual(format_circle_fraction(90.0), "1/4")
+        self.assertEqual(format_circle_fraction(120.0), "1/3")
+        self.assertEqual(format_circle_fraction(135.0), "3/8")
+        self.assertEqual(format_circle_fraction(180.0), "1/2")
 
 
 class ParserTests(unittest.TestCase):

@@ -270,7 +270,7 @@ def build_exhaustive_textbook():
         "When two harmonic cycle frequencies converge with identical phase angles ($\\phi_A = \\phi_B$), their amplitudes superimpose constructively:<br/>"
         "<code>A_{total} = \\sqrt{A_1^2 + A_2^2 + 2 A_1 A_2 \\cos(\\phi_1 - \\phi_2)}</code><br/>"
         "When $\\cos(\\phi_1 - \\phi_2) = 1$ (Phase alignment / Conjunction), amplitude doubles, triggering an explosive expansion in volatility and momentum. "
-        "Conversely, when $\\cos(\\phi_1 - \\phi_2) = -1$ (Opposition / $180^\circ$ Phase clash), kinetic force dissipates, creating an energy vacuum that produces dead consolidations or false breakout traps.",
+        "Conversely, when $\\cos(\\phi_1 - \\phi_2) = -1$ (Opposition / $180^\\circ$ Phase clash), kinetic force dissipates, creating an energy vacuum that produces dead consolidations or false breakout traps.",
         body_style
     ))
 
@@ -299,23 +299,26 @@ def build_exhaustive_textbook():
 
     story.append(Paragraph("3.2 Complete Mathematical Derivations: Bidirectional Conversion", h2_style))
     story.append(Paragraph("<b>Derivation 1: Converting Any Market Price to Its Exact Square of Nine Angle (Price → Angle):</b>", body_bold))
-    story.append(Paragraph("\\theta(P) = \\left( \\sqrt{P} \\pmod 2 \\right) \\times 180^\\circ \\quad \\text{where } \\theta \\in [0^\\circ, 360^\\circ)", formula_style))
+    story.append(Paragraph("\\theta(P) = \\left( (\\sqrt{P} - 1.0) \\pmod 2 \\right) \\times 180^\\circ \\quad \\text{where } \\theta \\in [0^\\circ, 360^\\circ)", formula_style))
     story.append(Paragraph(
-        "<b>Step-by-Step Manual Guide:</b><br/>"
-        "1. Take the square root of current market price $P$.<br/>"
-        "2. Subtract the largest even integer less than or equal to $\\sqrt{P}$ (i.e. calculate $\\sqrt{P} \\pmod 2$).<br/>"
-        "3. Multiply the remaining fractional root value by $180^\\circ$. The resulting value is the exact ecliptic coordinate degree on the Gann Wheel.",
+        "<b>Step-by-Step Rigorous Mathematical Derivation:</b><br/>"
+        "1. In Gann's authentic Square-of-Nine spiral, odd integer squares ($1, 9, 25, 49, 81...$) anchor the $0^\\circ$ base axis with square roots $\\sqrt{P} = 2k + 1$.<br/>"
+        "2. Subtracting $1.0$ aligns the odd roots to even integers: $(2k + 1) - 1 = 2k$.<br/>"
+        "3. Taking modulo $2.0$ yields the fractional rotation along the 360° circle: $(\\sqrt{P} - 1.0) \\pmod 2 \\in [0, 2)$.<br/>"
+        "4. Multiplying by $180^\\circ$ yields the exact wheel angle $\\theta \\in [0^\\circ, 360^\\circ)$.",
         body_style
     ))
 
     story.append(Paragraph("<b>Derivation 2: Converting Any Angular Degree into Exact Support & Resistance Ladders (Angle → Price):</b>", body_bold))
-    story.append(Paragraph("P(k, \\theta) = \\left( 2k + \\frac{\\theta}{180^\\circ} \\right)^2, \\quad k = \\left\\lfloor \\frac{\\sqrt{P_{\\text{ref}}} - (\\theta / 180^\\circ)}{2} \\right\\rfloor", formula_style))
+    story.append(Paragraph("P(k, \\theta) = \\left( 2k + 1.0 + \\frac{\\theta \\pmod{360^\\circ}}{180^\\circ} \\right)^2, \\quad k = \\left\\lfloor \\frac{\\sqrt{P_{\\text{ref}}} - 1.0 - (\\theta / 180^\\circ)}{2} \\right\\rfloor", formula_style))
     story.append(Paragraph(
-        "Where $P_{\\text{ref}}$ is the active reference price. The floor function calculates the fundamental octave integer $k$.<br/>"
-        "• Primary Harmonic Support: $P_{\\text{sup}} = \\left( 2k + \\frac{\\theta}{180^\\circ} \\right)^2$<br/>"
-        "• Primary Harmonic Resistance: $P_{\\text{res}} = \\left( 2(k + 1) + \\frac{\\theta}{180^\\circ} \\right)^2$<br/>"
-        "• Quadrant Projections (Square $+90^\\circ$): $P_{+90^\\circ} = \\left( \\sqrt{P} + 0.50 \\right)^2$<br/>"
-        "• Opposition Projections (Opposition $+180^\\circ$): $P_{+180^\\circ} = \\left( \\sqrt{P} + 1.00 \\right)^2$",
+        "Where $P_{\\text{ref}}$ is the active reference price and $k$ is the concentric spiral octave ring.<br/>"
+        "• Fixed Wheel Support Rung: $P_{\\text{sup}} = \\left( 2k + 1.0 + \\frac{\\theta}{180^\\circ} \\right)^2$<br/>"
+        "• Fixed Wheel Resistance Rung: $P_{\\text{res}} = \\left( 2(k + 1) + 1.0 + \\frac{\\theta}{180^\\circ} \\right)^2$<br/>"
+        "• Relative Root Projections (Quadratic Frequency): $P_{\\pm \\theta} = \\left( \\sqrt{P_{\\text{ref}}} \\pm \\frac{\\theta}{180^\\circ} \\right)^2$<br/>"
+        "  - Square ($+90^\\circ$): $P_{+90^\\circ} = \\left( \\sqrt{P} + 0.50 \\right)^2$<br/>"
+        "  - Trine ($+120^\\circ$): $P_{+120^\\circ} = \\left( \\sqrt{P} + \\frac{2}{3} \\right)^2$<br/>"
+        "  - Opposition ($+180^\\circ$): $P_{+180^\\circ} = \\left( \\sqrt{P} + 1.00 \\right)^2$",
         body_style
     ))
 
@@ -323,8 +326,8 @@ def build_exhaustive_textbook():
     story.append(Paragraph(
         "Let active Nifty 50 spot price $P = 24,350.00$.<br/>"
         "1. Compute root: $\\sqrt{24350} = 156.0448653$<br/>"
-        "2. Extract cycle offset: $156.0448653 \\pmod 2 = 0.0448653$<br/>"
-        "3. Longitude degree: $\\theta = 0.0448653 \\times 180^\\circ = \\mathbf{8.0758^\\circ}$ (corresponds to $08^\\circ\\text{Aries }05'$).<br/>"
+        "2. Subtract odd origin and take modulo 2: $(156.0448653 - 1.0) \\pmod 2 = 1.0448653$<br/>"
+        "3. Wheel Longitude: $\\theta = 1.0448653 \\times 180^\\circ = \\mathbf{188.0758^\\circ}$ (corresponds to $08^\\circ\\text{Libra }05'$).<br/>"
         "4. Calculate $180^\\circ$ Opposition Price Ceiling (Resistance):<br/>"
         "   $P_{\\text{opp}} = \\left( \\sqrt{24350} + 1.0 \\right)^2 = (156.044865 + 1.0)^2 = (157.044865)^2 = \\mathbf{24,663.09}$<br/>"
         "5. Calculate $90^\\circ$ Square Support Level:<br/>"
@@ -468,15 +471,17 @@ def build_exhaustive_textbook():
     ]))
     story.append(t_harm_full)
 
-    story.append(Paragraph("5.4 Astronomical True Solar Noon & Equation of Time Calibration", h2_style))
+    story.append(Paragraph("5.4 Astronomical True Solar Noon & NOAA Equation of Time Calibration", h2_style))
     story.append(Paragraph(
         "Gann emphasized Natural Time over civil clock time. True Solar Noon marks the moment the Sun crosses the observer's local celestial meridian. "
         "For Mumbai (72.825° E, home of NSE and BSE), the calculation requires two distinct astronomical corrections:<br/>"
         "1. <b>Meridian Longitudinal Offset:</b> IST is based on the 82.5° E meridian. Mumbai lies 9.675° West of the reference meridian. "
-        "At 4 minutes per degree: $\\text{Offset} = (82.5^\\circ - 72.825^\\circ) \\times 4\\text{ min} = \\mathbf{+38.7\\text{ minutes}}$ (Solar time lags clock time).<br/>"
-        "2. <b>Equation of Time (EoT):</b> The annual orbital correction: $\\text{EoT} \\approx 9.87 \\sin(2B) - 7.53 \\cos(B) - 1.50 \\sin(B)$, where $B = \\frac{2\\pi(d - 81)}{365}$.<br/>"
-        "3. <b>True Solar Noon:</b> $\\text{Noon}_{\\text{IST}} = 12:00 + 38.7\\text{ min} - \\text{EoT}$. "
-        "On late October trading dates, $\\text{EoT} \\approx +16.36\\text{ min}$, producing True Solar Noon at **12:22:20 IST**—aligning within 10 seconds of the NSE 12:22:30 IST session midpoint.",
+        "At 4 minutes per degree: $\\text{Offset} = (82.5^\\circ - 72.825^\\circ) \\times 4\\text{ min} = \\mathbf{+38.700\\text{ minutes}}$ (38 min 42 sec solar lag).<br/>"
+        "2. <b>NOAA Spencer Equation of Time (EoT):</b> The rigorous Fourier series expansion accurate to within 2 seconds:<br/>"
+        "   <code>\\text{EoT}(\\Gamma) = 229.18 \\times [0.000075 + 0.001868\\cos\\Gamma - 0.032077\\sin\\Gamma - 0.014615\\cos(2\\Gamma) - 0.040849\\sin(2\\Gamma)]</code><br/>"
+        "   where $\\Gamma = \\frac{2\\pi}{365.25}(d - 1)$ radians is the fractional year coordinate for day of year $d$.<br/>"
+        "3. <b>True Solar Noon:</b> $\\text{Noon}_{\\text{IST}} = 12:00 + 38.70\\text{ min} - \\text{EoT}$. "
+        "On late October trading dates (day 301), $\\text{EoT} \\approx +16.22\\text{ min}$, producing True Solar Noon at **12:22:28 IST**—aligning within 2 seconds of the NSE 12:22:30 IST session midpoint.",
         body_style
     ))
 

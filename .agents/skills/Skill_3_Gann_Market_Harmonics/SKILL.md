@@ -84,13 +84,20 @@ W. D. Gann established that price and time are interchangeable dimensions of the
 
 ### System A: Gann Square of Nine (Spiral Wheel of 360°)
 One full revolution ($360^\circ$ circle) corresponds to an increment of **2.0** on the square root scale ($\sqrt{P}$).
+Odd squares ($1, 9, 25, 49, 81...$) define the $0^\circ$ base axis with square roots $\sqrt{P} = 2k + 1$.
 
 #### 1. Price to Longitude ($\text{Price} \to \text{Longitude}$):
-$$\theta = \left( \sqrt{P} \pmod 2 \right) \times 180^\circ$$
+$$\theta = \left( (\sqrt{P} - 1.0) \pmod 2 \right) \times 180^\circ$$
 
-#### 2. Longitude to Price ($\text{Longitude} \to \text{Price}$):
-$$\text{offset} = \frac{\theta}{180^\circ}, \quad k = \left\lfloor \frac{\sqrt{P_{\text{ref}}} - \text{offset}}{2} \right\rfloor$$
-$$P_{\text{support}} = \left(2k + \frac{\theta}{180^\circ}\right)^2, \quad P_{\text{resist}} = \left(2(k + 1) + \frac{\theta}{180^\circ}\right)^2$$
+#### 2. Longitude to Price Fixed Wheel Ladders ($\text{Longitude} \to \text{Price}$):
+$$\text{offset} = \frac{\theta \pmod{360^\circ}}{180^\circ}, \quad k = \left\lfloor \frac{\sqrt{P_{\text{ref}}} - 1.0 - \text{offset}}{2} \right\rfloor$$
+$$P_{\text{support}} = \left(2k + 1.0 + \text{offset}\right)^2, \quad P_{\text{resist}} = \left(2(k + 1) + 1.0 + \text{offset}\right)^2$$
+
+#### 3. Relative Harmonic Quadratic Projections (Law of Vibration):
+$$P_{\pm \theta} = \left(\sqrt{P_{\text{ref}}} \pm \frac{\theta}{180^\circ}\right)^2$$
+
+#### 4. Linear Range Octaves (Arithmetic 8ths / CBSE Tharun exact fractions):
+$$P_{\pm \theta} = P_{50} \pm \left(\frac{\theta}{360^\circ}\right) \times \text{Range} = P_{50} \pm \left(\frac{\theta}{180^\circ}\right) \times \frac{\text{Range}}{2}$$
 
 ### System B: Natural Circle / Gann Wheel 360 ($1^\circ = 1 \text{ Point}$)
 $$\theta = \left(\frac{P}{\text{Scale}}\right) \pmod{360^\circ}$$

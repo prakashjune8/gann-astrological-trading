@@ -37,18 +37,24 @@ $$\Delta \sqrt{P} = \frac{\theta}{180^\circ}$$
 ### Bidirectional Conversion Formulas
 
 #### A. Price to Square of Nine Longitude ($\text{Price} \to \text{Degree}$):
-$$\theta = \left(\sqrt{P} \pmod 2\right) \times 180^\circ$$
+In Gann's authentic Square-of-Nine spiral, odd integer squares ($1, 9, 25, 49, 81...$) anchor the $0^\circ$ base axis with square roots $\sqrt{P} = 2k + 1$:
+$$\theta = \left((\sqrt{P} - 1.0) \pmod 2\right) \times 180^\circ$$
 - *Example:* Nifty 50 at $P = 24,350$:
   - $\sqrt{24350} \approx 156.044865$
-  - $156.044865 \pmod 2 = 0.044865$
-  - $\theta = 0.044865 \times 180^\circ = \mathbf{8.076^\circ}$ ($08^\circ\text{Aries }05'$).
+  - $(156.044865 - 1.0) \pmod 2 = 1.044865$
+  - $\theta = 1.044865 \times 180^\circ = \mathbf{188.076^\circ}$ ($08^\circ\text{Libra }05'$).
 
 #### B. Longitude to Target Price Ladders ($\text{Degree} \to \text{Price}$):
 Given planetary longitude $\theta \in [0^\circ, 360^\circ)$ and reference market price $P_{\text{ref}}$:
-$$k = \left\lfloor \frac{\sqrt{P_{\text{ref}}} - \frac{\theta}{180^\circ}}{2} \right\rfloor$$
-$$P_{\text{Support}} = \left(2k + \frac{\theta}{180^\circ}\right)^2, \quad P_{\text{Resistance}} = \left(2(k + 1) + \frac{\theta}{180^\circ}\right)^2$$
-- Aspect projections:
-  $$P_{+90^\circ} = \left(\sqrt{P} + 0.5\right)^2, \quad P_{+180^\circ} = \left(\sqrt{P} + 1.0\right)^2$$
+$$k = \left\lfloor \frac{\sqrt{P_{\text{ref}}} - 1.0 - \frac{\theta}{180^\circ}}{2} \right\rfloor$$
+$$P_{\text{Support}} = \left(2k + 1.0 + \frac{\theta}{180^\circ}\right)^2, \quad P_{\text{Resistance}} = \left(2(k + 1) + 1.0 + \frac{\theta}{180^\circ}\right)^2$$
+- Relative Quadratic Root Projections (Law of Vibration):
+  $$P_{\pm \theta} = \left(\sqrt{P_{\text{ref}}} \pm \frac{\theta}{180^\circ}\right)^2$$
+  - Quadrant ($+90^\circ$): $P_{+90^\circ} = \left(\sqrt{P} + 0.50\right)^2$
+  - Trine ($+120^\circ$): $P_{+120^\circ} = \left(\sqrt{P} + \frac{2}{3}\right)^2$
+  - Opposition ($+180^\circ$): $P_{+180^\circ} = \left(\sqrt{P} + 1.00\right)^2$
+- Linear Range Octaves (Arithmetic 8ths / Tharun exact fraction ratio):
+  $$P_{\pm \theta} = P_{50} \pm \left(\frac{\theta}{360^\circ}\right) \times \text{Range} = P_{50} \pm \left(\frac{\theta}{180^\circ}\right) \times \frac{\text{Range}}{2}$$
 
 ---
 

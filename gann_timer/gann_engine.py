@@ -29,25 +29,57 @@ def fmt_zodiac(lon: float) -> str:
 
 
 def sq9_levels(ref_price: float, degree: float) -> tuple[float, float]:
-    """Square-of-Nine price rungs bracketing *ref_price* for a wheel *degree*.
+    """Square-of-Nine fixed wheel rungs bracketing *ref_price* along ray *degree*.
 
-    sqrt(P) advances by 2 per 360° revolution, so P = (2k + degree/180)^2.
+    In Gann's authentic Square-of-Nine spiral:
+    - Odd squares (1, 9, 25, 49, 81...) anchor the 0° base axis: (2k + 1)^2.
+    - Each 360° revolution advances the square root by exactly +2.0.
+    - Ray angle theta corresponds to: sqrt(P) = 2k + 1 + (theta % 360) / 180.
     """
     if ref_price <= 0:
         return (math.nan, math.nan)
     off = (degree % 360.0) / 180.0
     r = math.sqrt(ref_price)
-    k = math.floor((r - off) / 2.0)
-    below = (2 * k + off) ** 2
-    above = (2 * (k + 1) + off) ** 2
-    if below > ref_price:  # numeric guard
-        below, above = (2 * (k - 1) + off) ** 2, below
+    k = math.floor((r - 1.0 - off) / 2.0)
+    below = (2.0 * k + 1.0 + off) ** 2
+    above = (2.0 * (k + 1.0) + 1.0 + off) ** 2
+    if below > ref_price:  # numeric boundary guard
+        k -= 1
+        below = (2.0 * k + 1.0 + off) ** 2
+        above = (2.0 * (k + 1.0) + 1.0 + off) ** 2
+    elif above <= ref_price:
+        k += 1
+        below = (2.0 * k + 1.0 + off) ** 2
+        above = (2.0 * (k + 1.0) + 1.0 + off) ** 2
     return below, above
 
 
+def sq9_relative_harmonic(ref_price: float, degree: float) -> tuple[float, float]:
+    """Square-of-Nine relative harmonic price levels projected directly from *ref_price*.
+
+    Support: (sqrt(P) - theta/180)^2
+    Resistance: (sqrt(P) + theta/180)^2
+    """
+    if ref_price <= 0:
+        return (math.nan, math.nan)
+    r = math.sqrt(ref_price)
+    delta = degree / 180.0
+    sup = (max(0.0, r - delta)) ** 2
+    res = (r + delta) ** 2
+    return sup, res
+
+
 def price_to_degree(price: float) -> float:
-    """Gann's natural square: price expressed as degrees of the circle."""
+    """Gann's natural 360° circle mapping: price modulo 360."""
     return price % 360.0
+
+
+def sq9_price_to_degree(price: float) -> float:
+    """Gann's Square of Nine spiral angle: theta = ((sqrt(P) - 1) % 2) * 180°."""
+    if price <= 0:
+        return 0.0
+    r = math.sqrt(price)
+    return ((r - 1.0) % 2.0) * 180.0
 
 
 def round_to_step(x: float, step: float | None) -> float:

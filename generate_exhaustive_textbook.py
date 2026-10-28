@@ -361,9 +361,9 @@ def build_exhaustive_textbook():
         "Harmonic Wave Superposition & Interference",
         "A_total = √[ A₁² + A₂² + 2 A₁ A₂ · cos(φ₁ − φ₂) ]",
         [
-            "Phase Coherence (Conjunction 0°): cos(φ₁ − φ₂) = +1  ⇒  A_total = A₁ + A₂ (Maximum Constructive Breakout)",
-            "Phase Polarity (Opposition 180°): cos(φ₁ − φ₂) = −1  ⇒  A_total = |A₁ − A₂| (Trend Exhaustion / Dissipation)",
-            "Orthogonal Quadrature (Square 90°/270°): cos(φ₁ − φ₂) = 0  ⇒  A_total = √(A₁² + A₂²) (Maximum Cyclic Shear Stress)"
+            "Phase Coherence (Conjunction 0°): cos(φ₁ − φ₂) = +1  →  A_total = A₁ + A₂ (Maximum Constructive Breakout)",
+            "Phase Polarity (Opposition 180°): cos(φ₁ − φ₂) = −1  →  A_total = |A₁ − A₂| (Trend Exhaustion / Dissipation)",
+            "Orthogonal Quadrature (Square 90°/270°): cos(φ₁ − φ₂) = 0  →  A_total = √(A₁² + A₂²) (Maximum Cyclic Shear Stress)"
         ],
         "Phase alignment produces explosive kinetic breakouts, whereas phase clashes produce violent whipsaws or trend termination."
     )
@@ -391,11 +391,11 @@ def build_exhaustive_textbook():
 
     card_p_to_deg = make_formula_card(
         "Derivation 1: Price to Square of Nine Wheel Degree (Price → Angle)",
-        "θ(P) = [ (√P − 1.0) mod 2.0 ] × 180°    for θ ∈ [0°, 360°)",
+        "θ(P) = [ (√P − 1.0) mod 2.0 ] × 180°    where 0° ≤ θ < 360°",
         [
             "Step 1: Compute the square root of spot market price P: r = √P",
             "Step 2: Subtract the center odd-root offset (1.0): r − 1.0",
-            "Step 3: Extract ring rotation coordinate via modulo 2.0: rot = (r − 1.0) mod 2.0 ∈ [0.0, 2.0)",
+            "Step 3: Extract ring rotation coordinate via modulo 2.0: rot = (r − 1.0) mod 2.0, where 0.0 ≤ rot < 2.0",
             "Step 4: Scale rotation coordinate to circular degrees: θ = rot × 180.0°"
         ],
         "Odd squares (1, 9, 25, 49) evaluate to θ = 0°. Even squares (4, 16, 36, 64) evaluate to θ = 180° (Opposition axis). "
@@ -406,9 +406,9 @@ def build_exhaustive_textbook():
 
     card_deg_to_p = make_formula_card(
         "Derivation 2: Angular Degree to Fixed Wheel Price Rungs (Angle → Price)",
-        "P(k, θ) = [ 2k + 1.0 + (θ mod 360°) / 180° ]²,    k = ⌊ (√P_ref − 1.0 − θ / 180°) / 2 ⌋",
+        "P(k, θ) = [ 2k + 1.0 + (θ mod 360°) / 180° ]²,    k = floor[ (√P_ref − 1.0 − θ / 180°) / 2 ]",
         [
-            "k: Concentric spiral octave integer = ⌊ (√P_ref − 1.0 − θ/180°) / 2 ⌋",
+            "k: Concentric spiral octave integer = floor[ (√P_ref − 1.0 − θ / 180°) / 2 ]",
             "Fixed Support Rung: P_sup = [ 2k + 1.0 + (θ / 180°) ]²   (where P_sup ≤ P_ref)",
             "Fixed Resistance Rung: P_res = [ 2(k + 1) + 1.0 + (θ / 180°) ]²   (where P_res > P_ref)",
             "Relative Quadratic Frequency: P_±θ = ( √P_ref ± θ / 180° )²"
@@ -425,7 +425,7 @@ def build_exhaustive_textbook():
         "1. Compute square root: √24350 = <b>156.044865</b><br/>"
         "2. Subtract odd origin and take modulo 2: (156.044865 − 1.0) mod 2.0 = <b>1.044865</b><br/>"
         "3. Wheel Longitude: θ = 1.044865 × 180° = <b>188.076°</b> (corresponds to 08° Libra 05')<br/>"
-        "4. Calculate Octave Integer: k = ⌊(156.044865 − 1.0 − 1.044865) / 2⌋ = ⌊154.0 / 2⌋ = <b>77</b><br/>"
+        "4. Calculate Octave Integer: k = floor[ (156.044865 − 1.0 − 1.044865) / 2 ] = floor[ 154.0 / 2 ] = <b>77</b><br/>"
         "5. Quadrant Resistance (+90°): P_+90° = (156.044865 + 0.50)² = (156.544865)² = <b>24,506.29</b><br/>"
         "6. Opposition Ceiling (+180°): P_+180° = (156.044865 + 1.00)² = (157.044865)² = <b>24,663.09</b><br/>"
         "7. Quadrant Support (−90°): P_−90° = (156.044865 − 0.50)² = (155.544865)² = <b>24,194.20</b>",
@@ -452,7 +452,7 @@ def build_exhaustive_textbook():
         "Planetary Longitude to Continuous Price Line Mapping",
         "P_Planet(t) = [ λ_ecliptic(t) + 360° × n ] × Scale",
         [
-            "λ_ecliptic(t): Geocentric tropical longitude of target planet ∈ [0°, 360°)",
+            "λ_ecliptic(t): Geocentric tropical longitude of target planet where 0° ≤ λ < 360°",
             "n: Integer circle cycle multiple (0, 1, 2, ...)",
             "Scale: Instrument conversion constant (Scale = 1.0 for metals, 10.0 or 100.0 for energy/indices)",
             "Price Squaring Event: Occurs whenever Spot Market Price(t) = P_Planet(t)"
@@ -474,25 +474,25 @@ def build_exhaustive_textbook():
     macro_table = [
         [Paragraph("Aspect Geometry", th_style), Paragraph("Angular Arc (Δλ)", th_style), Paragraph("Orbital Gravitational Mechanics", th_style), Paragraph("Institutional Execution Directive", th_style)],
         [
-            Paragraph("<b>Conjunction (☌)</b>", tc_style),
+            Paragraph("<b>Conjunction (0°)</b>", tc_style),
             Paragraph("0°00'00\"<br/>(±1.5° orb)", tc_style),
             Paragraph("Planetary merger along identical celestial longitude. Kinetic potential resets to zero; directional compression builds.", tc_style),
             Paragraph("<b>Cycle Inception:</b> Deploy aggressive directional breakout positions. High multi-week volatility expansion guaranteed.", tc_style)
         ],
         [
-            Paragraph("<b>Opposition (☍)</b>", tc_style),
+            Paragraph("<b>Opposition (180°)</b>", tc_style),
             Paragraph("180°00'00\"<br/>(±1.5° orb)", tc_style),
             Paragraph("Maximal circular tension and gravitational polarity. Culmination of accumulated cyclical momentum.", tc_style),
             Paragraph("<b>Exhaustion Pivot:</b> Tighten stop-losses on existing trends. Prepare counter-trend reversals at Square of Nine resistance.", tc_style)
         ],
         [
-            Paragraph("<b>Square (□)</b>", tc_style),
+            Paragraph("<b>Square (90°/270°)</b>", tc_style),
             Paragraph("90° / 270°<br/>(±1.0° orb)", tc_style),
             Paragraph("Quadrant orthogonal conflict. Cyclic shear stress between opposing orbital velocities.", tc_style),
             Paragraph("<b>Volatility Trap:</b> Expect violent price whipsaws, rapid fake-outs, and liquidity sweeps. Trade break-and-retests only.", tc_style)
         ],
         [
-            Paragraph("<b>Trine (△)</b>", tc_style),
+            Paragraph("<b>Trine (120°/240°)</b>", tc_style),
             Paragraph("120° / 240°<br/>(±1.0° orb)", tc_style),
             Paragraph("Equilateral triangular resonance (⅓ circle). Laminar, friction-free cyclic flow.", tc_style),
             Paragraph("<b>Harmonic Acceleration:</b> Add size to prevailing trend positions. High probability of uninterrupted trend continuations.", tc_style)
@@ -568,7 +568,7 @@ def build_exhaustive_textbook():
     
     harm_full_data = [
         [Paragraph("Harmonic Division", th_style), Paragraph("Angle (θ)", th_style), Paragraph("NSE Equity Time (375m)<br/>1° = 1.0417 min (62.5s)", th_style), Paragraph("MCX Commodity Time (870m)<br/>1° = 2.4167 min (145.0s)", th_style), Paragraph("Solar Noon Cycle (1440m)<br/>1° = 4.0000 min (240.0s)", th_style)],
-        [Paragraph("<b>0° Balance Axis</b>", tc_style), Paragraph("<b>0° (MID)</b>", tc_style), Paragraph("<b>★ 12:22:30 IST</b>", tc_style), Paragraph("<b>★ 16:15:00 IST</b>", tc_style), Paragraph("<b>★ 12:22:28 IST</b>", tc_style)],
+        [Paragraph("<b>0° Balance Axis</b>", tc_style), Paragraph("<b>0° (MID)</b>", tc_style), Paragraph("<b>[MID] 12:22:30 IST</b>", tc_style), Paragraph("<b>[MID] 16:15:00 IST</b>", tc_style), Paragraph("<b>[MID] 12:22:28 IST</b>", tc_style)],
         [Paragraph("1/24 Circle", tc_style), Paragraph("15°", tc_style), Paragraph("12:06:52 / 12:38:07 IST", tc_style), Paragraph("15:38:45 / 16:51:15 IST", tc_style), Paragraph("11:22:28 / 13:22:28 IST", tc_style)],
         [Paragraph("1/12 Circle", tc_style), Paragraph("30°", tc_style), Paragraph("11:51:15 / 12:53:45 IST", tc_style), Paragraph("15:02:30 / 17:27:30 IST", tc_style), Paragraph("10:22:28 / 14:22:28 IST", tc_style)],
         [Paragraph("<b>1/8 Circle (Octile)</b>", tc_style), Paragraph("<b>45°</b>", tc_style), Paragraph("<b>11:35:37 / 13:09:22 IST</b>", tc_style), Paragraph("<b>14:26:15 / 18:03:45 IST</b>", tc_style), Paragraph("<b>09:22:28 / 15:22:28 IST</b>", tc_style)],

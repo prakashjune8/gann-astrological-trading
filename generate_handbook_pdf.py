@@ -318,13 +318,13 @@ def build_pdf():
     story.append(Paragraph("2.1 Celestial Phenomena & Market Implications", h2_style))
 
     aspect_table_data = [
-        [Paragraph("Phenomenon", table_header_style), Paragraph("Symbol & Angle", table_header_style), Paragraph("Market Effect & Strategy", table_header_style)],
-        [Paragraph("Conjunction", table_cell_bold), Paragraph("☌ (0°)", table_cell_style), Paragraph("<b>Cycle Genesis:</b> Major trend reversal or consolidation breakout. Heavy institutional repositioning.", table_cell_style)],
-        [Paragraph("Opposition", table_cell_bold), Paragraph("☍ (180°)", table_cell_style), Paragraph("<b>Cycle Polarity:</b> Market exhaustion, counter-trend pivots, blow-off tops or panic selling troughs.", table_cell_style)],
-        [Paragraph("Square", table_cell_bold), Paragraph("□ (90° / 270°)", table_cell_style), Paragraph("<b>Disharmony / Clash:</b> Violent intraday volatility, sudden trend shakes, false breakout traps.", table_cell_style)],
-        [Paragraph("Trine", table_cell_bold), Paragraph("△ (120° / 240°)", table_cell_style), Paragraph("<b>Harmonic Flow:</b> Strong trend acceleration, momentum continuations, smooth trending channels.", table_cell_style)],
-        [Paragraph("Octiles (1/8)", table_cell_bold), Paragraph("∠ (45°) / ⚼ (135°)", table_cell_style), Paragraph("<b>Minor Turning Points:</b> Short-term counter-swings, weekly option expiry pin targets.", table_cell_style)],
-        [Paragraph("Planetary Stations", table_cell_bold), Paragraph("Stat Rx / Stat Dir", table_cell_style), Paragraph("<b>Zero-Velocity Inflections:</b> Strongest macro reversals. Outer planets (Jupiter/Saturn) form multi-week swing pivots.", table_cell_style)],
+        [Paragraph("Phenomenon", table_header_style), Paragraph("Angle Arc", table_header_style), Paragraph("Market Effect & Strategy", table_header_style)],
+        [Paragraph("Conjunction", table_cell_bold), Paragraph("0°", table_cell_style), Paragraph("<b>Cycle Genesis:</b> Major trend reversal or consolidation breakout. Heavy institutional repositioning.", table_cell_style)],
+        [Paragraph("Opposition", table_cell_bold), Paragraph("180°", table_cell_style), Paragraph("<b>Cycle Polarity:</b> Market exhaustion, counter-trend pivots, blow-off tops or panic selling troughs.", table_cell_style)],
+        [Paragraph("Square", table_cell_bold), Paragraph("90° / 270°", table_cell_style), Paragraph("<b>Disharmony / Clash:</b> Violent intraday volatility, sudden trend shakes, false breakout traps.", table_cell_style)],
+        [Paragraph("Trine", table_cell_bold), Paragraph("120° / 240°", table_cell_style), Paragraph("<b>Harmonic Flow:</b> Strong trend acceleration, momentum continuations, smooth trending channels.", table_cell_style)],
+        [Paragraph("Octiles (1/8)", table_cell_bold), Paragraph("45° / 135°", table_cell_style), Paragraph("<b>Minor Turning Points:</b> Short-term counter-swings, weekly option expiry pin targets.", table_cell_style)],
+        [Paragraph("Planetary Stations", table_cell_bold), Paragraph("Stat Rx / Dir", table_cell_style), Paragraph("<b>Zero-Velocity Inflections:</b> Strongest macro reversals. Outer planets (Jupiter/Saturn) form multi-week swing pivots.", table_cell_style)],
         [Paragraph("Cardinal Ingress", table_cell_bold), Paragraph("0° Ar, Cn, Li, Cp", table_cell_style), Paragraph("<b>Gann Seasonal Turns:</b> Solstices & Equinoxes dictate seasonal capital rotation across equity sectors.", table_cell_style)]
     ]
     t_aspect = Table(aspect_table_data, colWidths=[95, 80, 329])
@@ -348,7 +348,7 @@ def build_pdf():
 
     card_h_sq9 = make_handbook_formula_card(
         "Square of Nine Fixed Wheel Rungs & Quadratic Root Harmonics",
-        "P(k, θ) = [ 2k + 1.0 + (θ mod 360°) / 180° ]²,    k = ⌊ (√P_ref − 1.0 − θ / 180°) / 2 ⌋",
+        "P(k, θ) = [ 2k + 1.0 + (θ mod 360°) / 180° ]²,    k = floor[ (√P_ref − 1.0 − θ / 180°) / 2 ]",
         [
             "Odd integer squares anchor the 0° base axis: √P = 2k + 1 (1, 9, 25, 49, 81...)",
             "Fixed Support / Resistance: Rungs bracketing spot price P_ref along planetary ray θ",
@@ -457,7 +457,7 @@ def build_pdf():
 
     sample_table_data = [
         [Paragraph("Degree", table_header_style), Paragraph("Left (Morning)", table_header_style), Paragraph("Right (Afternoon)", table_header_style), Paragraph("Significance & Strategy Execution", table_header_style)],
-        [Paragraph("<b>0° (MID)</b>", table_cell_bold), Paragraph("★ 12:22:30 IST", table_cell_bold), Paragraph("★ 12:22:30 IST", table_cell_bold), Paragraph("<b>THE MIDPOINT OF THE DAY:</b> Trend gravity axis. Price above = Long, Price below = Short.", table_cell_style)],
+        [Paragraph("<b>0° (MID)</b>", table_cell_bold), Paragraph("<b>[MID] 12:22:30 IST</b>", table_cell_bold), Paragraph("<b>[MID] 12:22:30 IST</b>", table_cell_bold), Paragraph("<b>THE MIDPOINT OF THE DAY:</b> Trend gravity axis. Price above = Long, Price below = Short.", table_cell_style)],
         [Paragraph("30°", table_cell_style), Paragraph("11:51:15 IST", table_cell_style), Paragraph("12:53:45 IST", table_cell_style), Paragraph("Semi-Sextile: Pre-midpoint compression and 1:00 PM European market opening reaction.", table_cell_style)],
         [Paragraph("45°", table_cell_style), Paragraph("11:35:37 IST", table_cell_style), Paragraph("13:09:22 IST", table_cell_style), Paragraph("Octile: High-probability swing reversal window. Frequently caps morning rally or slide.", table_cell_style)],
         [Paragraph("90°", table_cell_style), Paragraph("10:48:45 IST", table_cell_style), Paragraph("13:56:15 IST", table_cell_style), Paragraph("<b>Major Square:</b> 10:48 terminates initial morning expansion; 13:56 launches afternoon directional wave.", table_cell_style)],
@@ -538,11 +538,11 @@ def build_pdf():
     # Summary Callout
     summary_box_data = [[Paragraph(
         "<b>Summary Checklist for Active Traders:</b><br/>"
-        "✓ Check NASA JPL ephemeris for planetary aspects during session hours.<br/>"
-        "✓ Map the 50% price midpoint of the opening range as your bullish/bearish line of control.<br/>"
-        "✓ Watch the 12:22:30 IST session midpoint for trend exhaustion or secondary acceleration.<br/>"
-        "✓ Trade in the direction of the 50% equilibrium toward the 90° (13:56 IST) and 120° (14:27 IST) time targets.<br/>"
-        "✓ Always confirm Gann astro-windows with volume and disciplined stop-loss risk management.",
+        "• Check NASA JPL ephemeris for planetary aspects during session hours.<br/>"
+        "• Map the 50% price midpoint of the opening range as your bullish/bearish line of control.<br/>"
+        "• Watch the 12:22:30 IST session midpoint for trend exhaustion or secondary acceleration.<br/>"
+        "• Trade in the direction of the 50% equilibrium toward the 90° (13:56 IST) and 120° (14:27 IST) time targets.<br/>"
+        "• Always confirm Gann astro-windows with volume and disciplined stop-loss risk management.",
         callout_style
     )]]
     t_summary_box = Table(summary_box_data, colWidths=[504])

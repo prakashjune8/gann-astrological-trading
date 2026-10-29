@@ -19,7 +19,7 @@ from reportlab.pdfgen import canvas
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
-PDF_OUTPUT = r"d:\ephemeris\Exhaustive_Gann_Academic_Textbook.pdf"
+PDF_OUTPUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Exhaustive_Gann_Academic_Textbook.pdf")
 
 
 def register_academic_fonts() -> tuple[str, str, str]:

@@ -11,7 +11,7 @@ from reportlab.pdfgen import canvas
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
-PDF_PATH = r"d:\ephemeris\Gann_Celestial_and_Midpoint_Trading_Handbook.pdf"
+PDF_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Gann_Celestial_and_Midpoint_Trading_Handbook.pdf")
 
 
 def register_handbook_fonts() -> tuple[str, str, str]:

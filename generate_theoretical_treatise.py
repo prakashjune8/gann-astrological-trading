@@ -11,7 +11,7 @@ from reportlab.platypus import (
 )
 from reportlab.pdfgen import canvas
 
-PDF_OUTPUT = r"d:\ephemeris\W_D_Gann_Theoretical_Foundations_and_Astro_Harmonics.pdf"
+PDF_OUTPUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "W_D_Gann_Theoretical_Foundations_and_Astro_Harmonics.pdf")
 
 class NumberedCanvas(canvas.Canvas):
     def __init__(self, *args, **kwargs):

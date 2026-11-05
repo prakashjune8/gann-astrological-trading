@@ -13,6 +13,7 @@ Features:
 """
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -108,13 +109,57 @@ class MarketSnapshot:
     change_pct: float
     timestamp: datetime
     is_live: bool
+    market_status: str = "OPEN"           # "OPEN", "EXCHANGE_CLOSED", "WEEKEND_CLOSED"
+    status_message: str = "Normal Trading"
 
 
 class MarketFeedEngine:
-    """Acquires live and historical price data with strict bullion protection."""
+    """Acquires live and historical price data with strict bullion protection and holiday awareness."""
 
-    def __init__(self):
+    def __init__(self, holidays_file: Optional[str] = None):
         self.custom_scripts: dict[str, dict[str, str]] = {}
+        self.holidays: list[dict] = []
+        self._load_holidays(holidays_file)
+
+    def _load_holidays(self, custom_path: Optional[str] = None):
+        """Loads Indian trading holiday calendar from JSON."""
+        search_paths = []
+        if custom_path:
+            search_paths.append(custom_path)
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        search_paths.extend([
+            os.path.join(base_dir, "data", "holidays_india.json"),
+            os.path.join(base_dir, "holidays_india.json"),
+            "holidays_india.json"
+        ])
+
+        for p in search_paths:
+            if os.path.isfile(p):
+                try:
+                    with open(p, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                        self.holidays = data.get("holidays", [])
+                        return
+                except Exception:
+                    pass
+
+    def is_holiday(self, target_date: date, exchange: str = "NSE") -> Tuple[bool, Optional[str]]:
+        """Determines whether a given date is an official trading holiday for the exchange."""
+        date_str = target_date.strftime("%Y-%m-%d")
+        for h in self.holidays:
+            if h.get("date") == date_str:
+                ex_clean = exchange.upper()
+                if ex_clean in ("NSE", "BSE", "INDEX", "CUSTOM"):
+                    if h.get("nse", True):
+                        return True, h.get("holiday", "Exchange Holiday")
+                elif ex_clean == "MCX":
+                    if h.get("mcx_morning") and h.get("mcx_evening"):
+                        return True, h.get("holiday", "MCX Holiday (Full Day)")
+                    elif h.get("mcx_morning"):
+                        return True, f"{h.get('holiday', 'MCX Holiday')} (Morning Session Closed)"
+                else:
+                    return True, h.get("holiday", "Trading Holiday")
+        return False, None
 
     def is_bullion_forbidden(self, symbol_or_name: str) -> bool:
         """Enforces the strict, non-negotiable bullion exclusion."""
@@ -154,13 +199,53 @@ class MarketFeedEngine:
         all_scripts.update(self.custom_scripts)
         return all_scripts
 
-    def fetch_snapshot(self, script_key: str) -> MarketSnapshot:
-        """Fetches the latest market snapshot via yfinance with realistic fallback."""
+    def fetch_snapshot(self, script_key: str, check_date: Optional[date] = None) -> MarketSnapshot:
+        """Fetches the latest market snapshot via yfinance with holiday interception and fallback."""
         scripts = self.get_all_available_scripts()
         meta = scripts.get(script_key.upper(), DEFAULT_SCRIPTS["NIFTY_50"])
         symbol = meta["symbol"]
+        exchange = meta.get("exchange", "NSE")
         now = datetime.now()
+        target_d = check_date or now.date()
 
+        # 1. Holiday Interception: Check if exchange is closed on target date
+        is_hol, hol_name = self.is_holiday(target_d, exchange=exchange)
+        if is_hol:
+            default_p = float(meta["default_price"])
+            return MarketSnapshot(
+                symbol=symbol,
+                name=meta["name"],
+                last_price=default_p,
+                open_price=default_p,
+                high_price=default_p,
+                low_price=default_p,
+                change_points=0.0,
+                change_pct=0.0,
+                timestamp=now,
+                is_live=False,
+                market_status="EXCHANGE_CLOSED",
+                status_message=f"Exchange Closed - {hol_name}"
+            )
+
+        # 2. Weekend Check
+        if target_d.weekday() in (5, 6):
+            default_p = float(meta["default_price"])
+            return MarketSnapshot(
+                symbol=symbol,
+                name=meta["name"],
+                last_price=default_p,
+                open_price=default_p,
+                high_price=default_p,
+                low_price=default_p,
+                change_points=0.0,
+                change_pct=0.0,
+                timestamp=now,
+                is_live=False,
+                market_status="WEEKEND_CLOSED",
+                status_message="Exchange Closed - Weekend"
+            )
+
+        # 3. Normal Trading Session: Fetch via yfinance
         try:
             ticker = yf.Ticker(symbol)
             # Fetch recent 1-day or 5-day history
@@ -185,7 +270,9 @@ class MarketFeedEngine:
                     change_points=round(chg, 2),
                     change_pct=round(chg_pct, 2),
                     timestamp=now,
-                    is_live=True
+                    is_live=True,
+                    market_status="OPEN",
+                    status_message="Live Market Data"
                 )
         except Exception:
             pass
@@ -202,7 +289,9 @@ class MarketFeedEngine:
             change_points=round(default_p * 0.002, 2),
             change_pct=0.20,
             timestamp=now,
-            is_live=False
+            is_live=False,
+            market_status="OPEN",
+            status_message="Offline Reference Model"
         )
 
     def fetch_historical_intraday(self, script_key: str, target_date: date) -> pd.DataFrame:

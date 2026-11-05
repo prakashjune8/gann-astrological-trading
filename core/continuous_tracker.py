@@ -18,7 +18,8 @@ from core.geo_temporal import (
     DEFAULT_STATION
 )
 from core.horizons_client import (
-    HorizonsClient, CENTER_GEOCENTRIC, CENTER_HELIOCENTRIC, BODIES, EphemerisSample
+    HorizonsClient, CENTER_GEOCENTRIC, CENTER_HELIOCENTRIC, BODIES, EphemerisSample,
+    CENTER_TOPOCENTRIC_MUMBAI, DEFAULT_TOPOCENTRIC_COORD
 )
 
 # Traditional Zodiac Sign Definitions (30° per sign)
@@ -27,6 +28,34 @@ ZODIAC_SIGNS = [
     "Leo", "Virgo", "Libra", "Scorpio",
     "Sagittarius", "Capricorn", "Aquarius", "Pisces"
 ]
+
+# Mean geocentric angular motion in degrees per hour
+PLANET_MEAN_MOTION_DEG_PER_HOUR: dict[str, float] = {
+    "MOON": 0.5490,       # ~13.176°/day
+    "MERCURY": 0.0625,    # ~1.50°/day
+    "VENUS": 0.0500,      # ~1.20°/day
+    "SUN": 0.04107,       # ~0.9856°/day
+    "MARS": 0.0218,       # ~0.524°/day
+    "JUPITER": 0.00346,   # ~0.083°/day
+    "SATURN": 0.00139,    # ~0.0335°/day
+    "URANUS": 0.000487,   # ~0.0117°/day
+    "NEPTUNE": 0.000249,  # ~0.00598°/day
+    "PLUTO": 0.000165,    # ~0.00396°/day
+    "EARTH": 0.04107,     # Reference (~0.9856°/day)
+}
+
+DEFAULT_STATIONARY_FACTOR: float = 0.03  # 3% of body's mean velocity
+
+
+def get_stationary_threshold(body_name: str, factor: float = DEFAULT_STATIONARY_FACTOR) -> float:
+    """Return dynamic, body-specific stationary threshold (deg/hr).
+
+    Outer planets (Neptune, Pluto) travel slowly in prograde motion (~0.0002°/hr).
+    Dynamic scaling prevents them from being incorrectly classified as stationary.
+    """
+    body_key = body_name.upper()
+    mean_speed = PLANET_MEAN_MOTION_DEG_PER_HOUR.get(body_key, 0.01)
+    return max(1e-6, mean_speed * factor)
 
 
 @dataclass(frozen=True)
@@ -86,7 +115,9 @@ class ContinuousCelestialTracker:
         body_name: str,
         target_date: date,
         session: SessionWindow = SESSION_NSE,
-        step_minutes: int = 1
+        step_minutes: int = 1,
+        topocentric_lunar: bool = True,
+        station_coord: Optional[str] = None
     ) -> list[ContinuousCelestialState]:
         """Generate continuous, minute-by-minute trajectory across the entire session."""
         body_upper = body_name.upper()
@@ -110,15 +141,21 @@ class ContinuousCelestialTracker:
         start_utc_padded = to_utc(timeline_ist[0]) - timedelta(hours=2)
         stop_utc_padded = to_utc(timeline_ist[-1]) + timedelta(hours=2)
 
-        # 1. Fetch Geocentric anchor data
+        # Dynamic stationary threshold for this celestial body
+        stationary_thresh = get_stationary_threshold(body_upper)
+
+        # 1. Fetch Geocentric (or Topocentric for Moon) anchor data
         geo_interpolator = None
         if has_geo:
+            is_topo = (body_upper == "MOON" and topocentric_lunar)
             geo_samples = self.client.fetch_ephemeris(
                 body_code=body_upper,
-                center=CENTER_GEOCENTRIC,
+                center=CENTER_TOPOCENTRIC_MUMBAI if is_topo else CENTER_GEOCENTRIC,
                 start_utc=start_utc_padded,
                 stop_utc=stop_utc_padded,
-                step_size="1h"
+                step_size="1h",
+                site_coord=station_coord,
+                topocentric=is_topo
             )
             geo_interpolator = self._create_spline_interpolator(geo_samples)
 
@@ -145,13 +182,13 @@ class ContinuousCelestialTracker:
             progress_ratio = max(0.0, min(1.0, elapsed_sec / total_session_seconds))
             session_circle_deg = progress_ratio * 360.0
 
-            # Evaluate Geocentric
+            # Evaluate Geocentric / Topocentric
             geo_lon = 0.0
             geo_vel = 0.0
             geo_state = "DIRECT"
             if geo_interpolator:
                 geo_lon, geo_vel = geo_interpolator(t_epoch)
-                if abs(geo_vel) <= 0.005:
+                if abs(geo_vel) <= stationary_thresh:
                     geo_state = "STATIONARY"
                 elif geo_vel < 0.0:
                     geo_state = "RETROGRADE"

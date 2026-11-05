@@ -41,6 +41,9 @@ class UserPreferences:
     alert_voice: bool = True
     alert_mode: str = "BOTH"                 # "CHIME", "VOICE", "BOTH", "MUTE"
 
+    # Geodetic / Topocentric Parallax Correction
+    topocentric_lunar: bool = True           # True = Topocentric Mumbai parallax, False = Standard Geocentric
+
     # User-added custom scripts
     custom_scripts: list[dict[str, str]] = None
 

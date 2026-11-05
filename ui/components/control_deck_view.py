@@ -176,10 +176,27 @@ class ControlDeckView(ctk.CTkScrollableFrame):
 
     def update_telemetry(self, state_snapshot: dict):
         """Updates summary values, planet cards, and price levels."""
-        if "cmp" in state_snapshot:
-            self.lbl_cmp.configure(text=f"{state_snapshot['cmp']:,.2f} pts")
-        if "script_name" in state_snapshot:
-            self.lbl_script_name.configure(text=state_snapshot["script_name"])
+        m_status = state_snapshot.get("market_status", "OPEN")
+        status_msg = state_snapshot.get("status_message", "Normal Trading")
+
+        if m_status in ("EXCHANGE_CLOSED", "WEEKEND_CLOSED"):
+            self.lbl_cmp.configure(
+                text=f"{status_msg}",
+                font=ctk.CTkFont(family="Consolas", size=13, weight="bold"),
+                text_color=self.theme.accent_amber
+            )
+            if "script_name" in state_snapshot:
+                self.lbl_script_name.configure(text=f"{state_snapshot['script_name']} [EXCHANGE CLOSED]")
+        else:
+            if "cmp" in state_snapshot:
+                self.lbl_cmp.configure(
+                    text=f"{state_snapshot['cmp']:,.2f} pts",
+                    font=ctk.CTkFont(family="Consolas", size=18, weight="bold"),
+                    text_color=self.theme.accent_blue
+                )
+            if "script_name" in state_snapshot:
+                self.lbl_script_name.configure(text=state_snapshot["script_name"])
+
         if "session_pct" in state_snapshot:
             self.lbl_session_pct.configure(text=f"{state_snapshot['session_pct']:.1f}% Elapsed")
         if "session_deg" in state_snapshot:

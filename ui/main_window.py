@@ -69,6 +69,10 @@ class MainWindow(ctk.CTk):
         self.latest_price_levels: list[dict] = []
         self.current_cmp = 24200.0
 
+        # Debounce timer for window resizing across DPI scaling boundaries
+        self._window_resize_debounce_timer = None
+        self.bind("<Configure>", self._on_window_configure)
+
         # Start Continuous Loop
         self._initial_load()
         self._schedule_live_tick()
@@ -166,6 +170,20 @@ class MainWindow(ctk.CTk):
             command=self._handle_custom_time_inspect, width=60, height=28
         ).pack(side="left", padx=2)
 
+        # Lunar Topocentric Parallax Toggle (Mumbai Observatory 72.88°E, 18.98°N)
+        topo_active = getattr(self.prefs, "topocentric_lunar", True)
+        self.btn_topo_moon = ctk.CTkButton(
+            strip,
+            text="Topo Moon (Mumbai)" if topo_active else "Geo Moon",
+            font=ctk.CTkFont(size=10, weight="bold"),
+            fg_color=self.theme.bg_accent,
+            text_color=self.theme.accent_amber if topo_active else self.theme.text_secondary,
+            command=self._toggle_topo_moon,
+            width=135,
+            height=28
+        )
+        self.btn_topo_moon.pack(side="left", padx=6)
+
         # Harmonic Layers Dropdown Filter
         ctk.CTkLabel(strip, text="Layers:", font=ctk.CTkFont(size=11, weight="bold"), text_color=self.theme.text_secondary).pack(side="left", padx=(14, 4))
         self.layers_var = ctk.StringVar(value="All Overlays Active")
@@ -257,6 +275,34 @@ class MainWindow(ctk.CTk):
     def _handle_layer_change(self, layer_choice: str):
         self._compute_and_refresh()
 
+    def _toggle_topo_moon(self):
+        curr = getattr(self.prefs, "topocentric_lunar", True)
+        self.prefs.topocentric_lunar = not curr
+        self.state_mgr.save_preferences()
+        is_topo = self.prefs.topocentric_lunar
+        self.btn_topo_moon.configure(
+            text="Topo Moon (Mumbai)" if is_topo else "Geo Moon",
+            text_color=self.theme.accent_amber if is_topo else self.theme.text_secondary
+        )
+        mode_str = "Topocentric (Mumbai Parallax 72.88°E, 18.98°N)" if is_topo else "Geocentric (Earth Center 500@399)"
+        self.alert_ledger.add_event("LUNAR", f"Switched Moon Ephemeris to {mode_str}.", datetime.now().strftime("%H:%M:%S IST"))
+        self._compute_and_refresh()
+
+    def _on_window_configure(self, event):
+        """Debounce resize and cross-monitor DPI transition events (150ms)."""
+        if event.widget == self:
+            if self._window_resize_debounce_timer is not None:
+                self.after_cancel(self._window_resize_debounce_timer)
+            self._window_resize_debounce_timer = self.after(150, self._handle_debounced_window_resize)
+
+    def _handle_debounced_window_resize(self):
+        self._window_resize_debounce_timer = None
+        # Redraw celestial wheel at the new monitor's native geometry / DPI
+        if hasattr(self, "view_wheel") and self.view_wheel.winfo_exists():
+            self.view_wheel.redraw()
+        if hasattr(self, "view_split") and self.view_split.winfo_exists():
+            self.view_split.wheel_view.redraw()
+
     def _open_custom_script_dialog(self):
         def _on_add(symbol: str, name: str) -> tuple[bool, str]:
             ok, msg = self.feed_engine.add_custom_script(symbol, name)
@@ -293,6 +339,14 @@ class MainWindow(ctk.CTk):
         snap = self.feed_engine.fetch_snapshot(self.prefs.active_script)
         self.current_cmp = snap.last_price
 
+        # Check if exchange is closed (Trading Holiday or Weekend)
+        if snap.market_status in ("EXCHANGE_CLOSED", "WEEKEND_CLOSED"):
+            self.alert_ledger.add_event(
+                "EXCHANGE",
+                f"{snap.symbol} ({snap.name}): {snap.status_message}",
+                now_ist.strftime("%H:%M:%S IST")
+            )
+
         # 2. Determine session
         session = SESSION_NSE
         if "MCX" in snap.name or "CRUDE" in self.prefs.active_script or "COPPER" in self.prefs.active_script:
@@ -313,9 +367,16 @@ class MainWindow(ctk.CTk):
 
         planets_telemetry = {}
         wheel_planets = {}
+        topo_lunar = getattr(self.prefs, "topocentric_lunar", True)
         for b in bodies_to_track[:10]:
             try:
-                traj = self.tracker.track_body(b, target_date, session=session, step_minutes=30)
+                traj = self.tracker.track_body(
+                    b,
+                    target_date,
+                    session=session,
+                    step_minutes=30,
+                    topocentric_lunar=topo_lunar
+                )
                 if traj:
                     last_pt = traj[-1]
                     lon = last_pt.helio_longitude if is_helio else last_pt.geo_longitude
@@ -381,6 +442,8 @@ class MainWindow(ctk.CTk):
         snapshot = {
             "cmp": self.current_cmp,
             "script_name": snap.name,
+            "market_status": snap.market_status,
+            "status_message": snap.status_message,
             "session_pct": prog_pct,
             "session_deg": prog_deg,
             "noon_time": solar_noon.strftime("%H:%M:%S IST"),

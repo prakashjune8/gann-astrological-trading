@@ -34,6 +34,7 @@ class CelestialWheelView(ctk.CTkFrame):
         self.planets_data: dict[str, float] = {}
         self.aspects_data: list[dict] = []
         self.price_needle_deg: Optional[float] = None
+        self._debounce_id = None
 
     def _build_canvas(self):
         self.canvas = tk.Canvas(
@@ -43,7 +44,13 @@ class CelestialWheelView(ctk.CTkFrame):
             bd=0
         )
         self.canvas.pack(fill="both", expand=True, padx=12, pady=12)
-        self.canvas.bind("<Configure>", lambda e: self.redraw())
+        self.canvas.bind("<Configure>", self._on_canvas_configure)
+
+    def _on_canvas_configure(self, event=None):
+        """150ms Debounced resize & DPI transition handler to eliminate offset artifacts."""
+        if self._debounce_id is not None:
+            self.after_cancel(self._debounce_id)
+        self._debounce_id = self.after(150, self.redraw)
 
     def update_wheel_data(
         self,

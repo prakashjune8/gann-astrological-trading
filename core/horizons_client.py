@@ -21,6 +21,8 @@ HORIZONS_API_URL = "https://ssd.jpl.nasa.gov/api/horizons.api"
 # Center definitions
 CENTER_GEOCENTRIC = "500@399"  # Earth geocenter
 CENTER_HELIOCENTRIC = "500@10"  # Sun center
+CENTER_TOPOCENTRIC_MUMBAI = "coord@399"  # Earth surface site
+DEFAULT_TOPOCENTRIC_COORD = "72.8777,18.9750,0"  # Mumbai (NSE Exchange Hub): Lon East, Lat North, Alt km
 
 # Body registry
 BODIES: dict[str, dict[str, str]] = {
@@ -79,9 +81,10 @@ class HorizonsClient:
             conn.commit()
 
     def _build_cache_key(
-        self, body_id: str, center: str, start_ut: str, stop_ut: str, step: str
+        self, body_id: str, center: str, start_ut: str, stop_ut: str, step: str, site_coord: Optional[str] = None
     ) -> str:
-        return f"{body_id}|{center}|{start_ut}|{stop_ut}|{step}"
+        coord_suffix = f"|{site_coord}" if site_coord else ""
+        return f"{body_id}|{center}|{start_ut}|{stop_ut}|{step}{coord_suffix}"
 
     def _get_from_cache(self, cache_key: str) -> Optional[str]:
         with sqlite3.connect(self.db_path) as conn:
@@ -105,14 +108,19 @@ class HorizonsClient:
         start_utc: datetime = None,
         stop_utc: datetime = None,
         step_size: str = "1h",
+        site_coord: Optional[str] = None,
+        topocentric: bool = False,
         max_retries: int = 3
     ) -> list[EphemerisSample]:
-        """Fetch ephemeris series for a given body and coordinate center (Geo or Helio)."""
+        """Fetch ephemeris series for a given body and coordinate center (Geo, Helio, or Topocentric)."""
         body_id = BODIES.get(body_code.upper(), {}).get("id", body_code)
+
+        effective_center = CENTER_TOPOCENTRIC_MUMBAI if (topocentric or center == CENTER_TOPOCENTRIC_MUMBAI) else center
+        effective_site = site_coord or (DEFAULT_TOPOCENTRIC_COORD if effective_center == CENTER_TOPOCENTRIC_MUMBAI else None)
 
         start_str = start_utc.strftime("%Y-%m-%d %H:%M")
         stop_str = stop_utc.strftime("%Y-%m-%d %H:%M")
-        cache_key = self._build_cache_key(body_id, center, start_str, stop_str, step_size)
+        cache_key = self._build_cache_key(body_id, effective_center, start_str, stop_str, step_size, effective_site)
 
         cached_csv = self._get_from_cache(cache_key)
         if cached_csv:
@@ -122,7 +130,7 @@ class HorizonsClient:
             "format": "json",
             "COMMAND": f"'{body_id}'",
             "EPHEM_TYPE": "OBSERVER",
-            "CENTER": f"'{center}'",
+            "CENTER": f"'{effective_center}'",
             "START_TIME": f"'{start_str}'",
             "STOP_TIME": f"'{stop_str}'",
             "STEP_SIZE": f"'{step_size}'",
@@ -131,6 +139,8 @@ class HorizonsClient:
             "CSV_FORMAT": "YES",
             "OBJ_DATA": "NO",
         }
+        if effective_site:
+            params["SITE_COORD"] = f"'{effective_site}'"
 
         url = f"{HORIZONS_API_URL}?{urllib.parse.urlencode(params)}"
         req = urllib.request.Request(

@@ -339,8 +339,8 @@ class EventDrivenBacktester:
                         )
                         completed_trades.append(trd)
 
-                        # Immediate Re-entry if stopped out by initial whipsaw (max 1 re-entry)
-                        if self.allow_immediate_reentry and not trd.is_reentry:
+                        # Immediate Re-entry if stopped out by initial whipsaw within 5 minutes (max 1 re-entry)
+                        if self.allow_immediate_reentry and not trd.is_reentry and trd.holding_minutes <= 5:
                             reentry_sig = TradeSignal(
                                 signal_id=f"{trd.signal_id}_REENTRY",
                                 signal_time=curr_bar_time,
@@ -387,8 +387,8 @@ class EventDrivenBacktester:
                         )
                         completed_trades.append(trd)
 
-                        # Immediate Re-entry if stopped out by initial whipsaw (max 1 re-entry)
-                        if self.allow_immediate_reentry and not trd.is_reentry:
+                        # Immediate Re-entry if stopped out by initial whipsaw within 5 minutes (max 1 re-entry)
+                        if self.allow_immediate_reentry and not trd.is_reentry and trd.holding_minutes <= 5:
                             reentry_sig = TradeSignal(
                                 signal_id=f"{trd.signal_id}_REENTRY",
                                 signal_time=curr_bar_time,

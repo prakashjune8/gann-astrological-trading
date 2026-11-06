@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import pandas as pd
 
 from core.broker_client import (
+    APIRateLimiter,
     BracketOrderRequest,
     BrokerAuthManager,
     BrokerType,
@@ -31,7 +32,9 @@ from core.broker_client import (
     OrderManagementSystem,
     OrderState,
     OrderType,
+    RealTimeConfluenceRouter,
 )
+from core.confluence_engine import SniperTradeSetup
 
 
 def test_exponential_backoff():
@@ -152,9 +155,10 @@ def test_ingestion_bullion_barrier():
 
 
 def test_oms_bracket_execution():
-    print("[5/5] Testing OMS Pre-Trade Gate, Signal Lockout State Machine & OCO Router...")
+    print("[5/8] Testing OMS Pre-Trade Gate, Signal Lockout State Machine & OCO Router...")
     auth = BrokerAuthManager()
     oms = OrderManagementSystem(auth_mgr=auth)
+    oms.arm_live_execution()
 
     valid_req = BracketOrderRequest(
         symbol="NIFTY50",
@@ -202,15 +206,146 @@ def test_oms_bracket_execution():
     print("      Session Reset: Cleared lockouts for subsequent trading day.")
 
 
+def test_api_rate_limiter():
+    print("[6/8] Testing APIRateLimiter (10 req/s Sliding Window)...")
+    limiter = APIRateLimiter(max_requests_per_sec=10.0, window_sec=1.0)
+    
+    # First 10 calls in <10ms must succeed
+    allowed_count = 0
+    for _ in range(10):
+        if limiter.acquire():
+            allowed_count += 1
+    assert allowed_count == 10, f"Expected 10 requests allowed, got {allowed_count}"
+
+    # 11th request in the same second must be throttled
+    assert not limiter.acquire(), "11th request must be throttled by rate limiter!"
+    assert not limiter.can_request()
+    print("      Passed. Exactly 10 requests granted; 11th request throttled.")
+
+
+def test_concurrent_millisecond_signal_lockout():
+    print("[7/8] Testing Mutex-Guarded OMS Lockout Under 10 Concurrent Millisecond Signals...")
+    import concurrent.futures
+
+    auth = BrokerAuthManager()
+    # High rate limiter limit to isolate mutex lockout logic
+    limiter = APIRateLimiter(max_requests_per_sec=100.0)
+    oms = OrderManagementSystem(auth_mgr=auth, rate_limiter=limiter)
+
+    req = BracketOrderRequest(
+        symbol="NIFTY50",
+        is_buy=True,
+        qty=50,
+        entry_price=24200.0,
+        hard_stop_price=24182.0,
+        target1_price=24325.0,
+        target2_price=24452.0,
+        confluence_signal_id="CONCURRENCY_TEST_RACE",
+        node_id="MIDPOINT_1222_PARALLEL_RACE",
+        session_date="20261107"
+    )
+
+    results = []
+
+    def dispatch_worker():
+        return oms.dispatch_bracket_order(req)
+
+    # Launch 10 worker threads simultaneously in the exact same millisecond
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        futures = [executor.submit(dispatch_worker) for _ in range(10)]
+        for f in concurrent.futures.as_completed(futures):
+            results.append(f.result())
+
+    successes = [r for r in results if r[0] is True]
+    failures = [r for r in results if r[0] is False]
+
+    assert len(successes) == 1, f"CRITICAL RACE CONDITION: Expected 1 success, got {len(successes)}!"
+    assert len(failures) == 9, f"Expected 9 rejected duplicate threads, got {len(failures)}!"
+    assert len(oms.active_orders) == 1, f"Expected 1 active order, got {len(oms.active_orders)}!"
+
+    # Verify all failures were caught by OMS Lockout
+    for ok, reason in failures:
+        assert "OMS LOCKOUT" in reason, f"Failure reason was not lockout: {reason}"
+
+    print(f"      Passed. Mutex protected! Exactly 1/10 threads executed; 9/10 rejected simultaneously in same ms.")
+
+
+def test_realtime_confluence_router_and_live_switch():
+    print("[8/8] Testing RealTimeConfluenceRouter & Armed Live Switch Toggle...")
+    auth = BrokerAuthManager()
+    oms = OrderManagementSystem(auth_mgr=auth)
+    router = RealTimeConfluenceRouter(oms=oms, default_lot_size=50)
+
+    # 1. Test in safe Simulation Mode (Default: is_live_execution_armed = False)
+    assert not oms.is_live_execution_armed
+    mock_setup = SniperTradeSetup(
+        is_triggered=True,
+        direction="LONG / ATM CALL",
+        entry_price=24200.0,
+        hard_stop_loss=24182.0,
+        risk_pts=18.0,
+        target_1=24325.0,
+        target_2=24452.0,
+        reward_pts=252.0,
+        risk_reward_ratio=14.0,
+        tranche_a_pct=25.0,
+        tranche_b_pct=50.0,
+        tranche_c_pct=25.0,
+        rationale="Triple Confluence 3-Gate Lock"
+    )
+
+    eval_t = datetime(2026, 11, 7, 12, 22, 30)
+    ok, order_id = router.route_setup(mock_setup, symbol="NIFTY50", eval_time=eval_t)
+    assert ok
+    order = oms.active_orders[order_id]
+    assert order.state == OrderState.FILLED  # Simulated fill
+    print(f"      Simulation Mode Dispatch: {order_id} recorded in memory without live broker API transmission.")
+
+    # 2. Test Live Execution Switch Armed (#F43F5E)
+    oms.arm_live_execution()
+    assert oms.is_live_execution_armed
+
+    # Dispatch another different node while armed
+    mock_setup_short = SniperTradeSetup(
+        is_triggered=True,
+        direction="SHORT / ATM PUT",
+        entry_price=24500.0,
+        hard_stop_loss=24518.0,
+        risk_pts=18.0,
+        target_1=24375.0,
+        target_2=24248.0,
+        reward_pts=252.0,
+        risk_reward_ratio=14.0,
+        tranche_a_pct=25.0,
+        tranche_b_pct=50.0,
+        tranche_c_pct=25.0,
+        rationale="Triple Confluence Short at 24500"
+    )
+    eval_t2 = datetime(2026, 11, 7, 13, 56, 15)
+    ok2, order_id2 = router.route_setup(mock_setup_short, symbol="NIFTY50", eval_time=eval_t2)
+    assert ok2
+    order2 = oms.active_orders[order_id2]
+    assert order2.state == OrderState.OPEN  # Live broker open order
+    print(f"      Live Armed Dispatch: {order_id2} marked as OPEN for active broker execution.")
+
+    # Disarm back to safe simulation
+    oms.disarm_live_execution()
+    assert not oms.is_live_execution_armed
+    print("      Passed. Safe disarm verified. RealTimeConfluenceRouter 3-gate pipeline fully operational.")
+
+
 if __name__ == "__main__":
     print("=================================================================")
-    print("RUNNING LIVE BROKER WEBSOCKET & AGGREGATOR TEST SUITE (PHASE 2-1)")
+    print("RUNNING LIVE BROKER WEBSOCKET, ROUTER & OMS TEST SUITE (PHASE 2-4)")
     print("=================================================================")
     test_exponential_backoff()
     test_latency_telemetry_bounded_memory()
     test_tick_to_ohlcv_aggregator()
     test_ingestion_bullion_barrier()
     test_oms_bracket_execution()
+    test_api_rate_limiter()
+    test_concurrent_millisecond_signal_lockout()
+    test_realtime_confluence_router_and_live_switch()
     print("=================================================================")
-    print("ALL 5 PHASE 2 SUB-TASK 1 TESTS DETERMINISTICALLY PASSED")
+    print("ALL 8 PHASE 2 EXECUTION BRIDGE TESTS DETERMINISTICALLY PASSED")
     print("=================================================================")

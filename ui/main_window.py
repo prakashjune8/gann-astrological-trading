@@ -10,6 +10,7 @@ import customtkinter as ctk
 from audio.alert_audio import AlertAudioEngine
 from core.aspect_engine import AspectEngine
 from core.backtest_engine import GannBacktestEngine
+from core.broker_client import BrokerAuthManager, OrderManagementSystem, RealTimeConfluenceRouter
 from core.confluence_engine import ConfluenceEngine
 from core.continuous_tracker import ContinuousCelestialTracker, ContinuousCelestialState
 from core.geo_temporal import (
@@ -65,6 +66,9 @@ class MainWindow(ctk.CTk):
         self.horizons_client = HorizonsClient()
         self.tracker = ContinuousCelestialTracker(self.horizons_client)
         self.audio_engine = AlertAudioEngine()
+        self.auth_mgr = BrokerAuthManager()
+        self.oms = OrderManagementSystem(auth_mgr=self.auth_mgr)
+        self.confluence_router = RealTimeConfluenceRouter(oms=self.oms)
 
         # Operational States
         self.is_custom_time_active: bool = False
@@ -212,12 +216,25 @@ class MainWindow(ctk.CTk):
         )
         self.btn_topo_moon.pack(side="left", padx=6)
 
-        # Right-side action buttons: Academy Guide & PDF Export
+        # Right-side action buttons: Live Switch Toggle, Academy Guide & PDF Export
+        self.btn_live_exec_toggle = ctk.CTkButton(
+            self.strip,
+            text="🛡 SIMULATION EXEC",
+            font=ctk.CTkFont(size=10, weight="bold"),
+            fg_color=self.theme.bg_accent,
+            hover_color=self.theme.border_color,
+            text_color=self.theme.text_secondary,
+            command=self._toggle_live_execution_switch,
+            width=140,
+            height=28
+        )
+        self.btn_live_exec_toggle.pack(side="right", padx=(4, 14))
+
         ctk.CTkButton(
             self.strip, text="PDF Summary", font=ctk.CTkFont(size=10, weight="bold"),
             fg_color=self.theme.accent_blue, text_color="white",
             command=self._export_pdf_summary, width=95, height=28
-        ).pack(side="right", padx=(4, 14))
+        ).pack(side="right", padx=4)
 
         ctk.CTkButton(
             self.strip, text="Academy Guide", font=ctk.CTkFont(size=10),
@@ -498,6 +515,30 @@ class MainWindow(ctk.CTk):
         self.alert_ledger.add_event("LUNAR", f"Switched Moon Ephemeris to {mode_str}.", datetime.now().strftime("%H:%M:%S IST"))
         self._compute_and_refresh()
 
+    def _toggle_live_execution_switch(self):
+        """Toggles between Safe Simulation Mode and Armed Real-Time Broker Execution (#F43F5E)."""
+        now_ist = datetime.now(IST)
+        if not self.oms.is_live_execution_armed:
+            self.oms.arm_live_execution()
+            self.btn_live_exec_toggle.configure(
+                text="⚡ LIVE EXEC ARMED",
+                fg_color="#F43F5E",
+                hover_color="#E11D48",
+                text_color="#FFFFFF"
+            )
+            self.alert_ledger.set_banner_alert("⚠️ LIVE BROKER EXECUTION ARMED (#F43F5E) — REAL ORDERS ACTIVE", is_critical=True)
+            self.alert_ledger.add_event("OMS", "⚠️ LIVE BROKER EXECUTION ARMED (#F43F5E). Real bracket orders will route to broker API!", now_ist.strftime("%H:%M:%S IST"))
+        else:
+            self.oms.disarm_live_execution()
+            self.btn_live_exec_toggle.configure(
+                text="🛡 SIMULATION EXEC",
+                fg_color=self.theme.bg_accent,
+                hover_color=self.theme.border_color,
+                text_color=self.theme.text_secondary
+            )
+            self.alert_ledger.set_banner_alert("SIMULATION MODE ACTIVE — Orders Registered In-Memory", is_critical=False)
+            self.alert_ledger.add_event("OMS", "🛡 Disarmed to Simulation Mode. Broker API orders disabled.", now_ist.strftime("%H:%M:%S IST"))
+
     def _on_window_configure(self, event):
         """Debounce resize and cross-monitor DPI transition events (150ms)."""
         if event.widget == self:
@@ -687,6 +728,18 @@ class MainWindow(ctk.CTk):
             self.audio_engine.trigger_alert("CHIME", "Triple Confluence Triggered")
             self.alert_ledger.set_banner_alert(f"TRIPLE CONFLUENCE SNIPER: {setup.direction} @ {setup.entry_price:,.1f}", is_critical=True)
             self.alert_ledger.add_event("SNIPER", f"🎯 {setup.direction} @ {setup.entry_price:,.1f} | Hard Stop: {setup.hard_stop_loss:,.1f} (-{setup.risk_pts:.0f} pts) | T1: {setup.target_1:,.1f} | R:R 1:{setup.risk_reward_ratio:.1f}", eval_time_ist.strftime("%H:%M:%S IST"))
+
+            # Route to OMS via RealTimeConfluenceRouter
+            success, order_or_reason = self.confluence_router.route_setup(
+                setup=setup,
+                symbol=self.prefs.active_script,
+                eval_time=eval_time_ist
+            )
+            if success:
+                mode_str = "LIVE BROKER" if self.oms.is_live_execution_armed else "SIMULATION"
+                self.alert_ledger.add_event("ORDER", f"🚀 [{mode_str}] {order_or_reason} DISPATCHED: {setup.direction} @ {setup.entry_price:,.1f}", eval_time_ist.strftime("%H:%M:%S IST"))
+            else:
+                self.alert_ledger.add_event("LOCKOUT", f"🔒 {order_or_reason}", eval_time_ist.strftime("%H:%M:%S IST"))
 
         # 8. Price Needle Degree on Wheel
         price_angle = PriceHarmonicsEngine.price_to_wheel_angle(self.current_cmp)

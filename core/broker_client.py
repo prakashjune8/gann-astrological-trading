@@ -463,7 +463,48 @@ class KiteWebSocketDataPump(WebSocketDataPump):
 
 
 # ==============================================================================
-# 5. ORDER MANAGEMENT SYSTEM (OMS) & BRACKET DISPATCHER
+# 5. BROKER API RATE LIMITER
+# ==============================================================================
+
+class APIRateLimiter:
+    """Thread-safe broker API rate limiter (sliding window token bucket).
+    
+    Guarantees outbound order dispatches and modifications never exceed max_requests_per_sec (default 10 req/s).
+    """
+
+    def __init__(self, max_requests_per_sec: float = 10.0, window_sec: float = 1.0):
+        self.max_requests = max_requests_per_sec
+        self.window_sec = window_sec
+        self._timestamps: Deque[float] = collections.deque()
+        self._mutex = threading.Lock()
+
+    def can_request(self) -> bool:
+        with self._mutex:
+            now = time_mod.time()
+            cutoff = now - self.window_sec
+            while self._timestamps and self._timestamps[0] <= cutoff:
+                self._timestamps.popleft()
+            return len(self._timestamps) < self.max_requests
+
+    def acquire(self) -> bool:
+        """Atomically acquires permission for an API call or returns False if throttled."""
+        with self._mutex:
+            now = time_mod.time()
+            cutoff = now - self.window_sec
+            while self._timestamps and self._timestamps[0] <= cutoff:
+                self._timestamps.popleft()
+            if len(self._timestamps) < self.max_requests:
+                self._timestamps.append(now)
+                return True
+            return False
+
+    def reset(self) -> None:
+        with self._mutex:
+            self._timestamps.clear()
+
+
+# ==============================================================================
+# 6. ORDER MANAGEMENT SYSTEM (OMS) & BRACKET DISPATCHER
 # ==============================================================================
 
 class OrderManagementSystem:
@@ -471,31 +512,51 @@ class OrderManagementSystem:
     
     Includes institutional Signal Lockout State Machine:
     Once an order is dispatched for a specific harmonic timing/price node (e.g. 12:22 Midpoint at strike 24,000),
-    the OMS tags that node as [EXECUTED] and refuses any duplicate orders for that specific setup for the rest
+    the OMS tags that node as [EXECUTED] and violently refuses any duplicate signals for the same setup for the rest
     of the trading session, preventing high-frequency API flood loops and account liquidation.
+    Protected by a dedicated Mutex Lock (_mutex) to ensure race-condition immunity across concurrent threads.
     """
 
-    def __init__(self, auth_mgr: BrokerAuthManager):
+    def __init__(self, auth_mgr: BrokerAuthManager, rate_limiter: Optional[APIRateLimiter] = None):
         self.auth_mgr = auth_mgr
+        self.rate_limiter = rate_limiter or APIRateLimiter(max_requests_per_sec=10.0)
         self.active_orders: Dict[str, BrokerOrder] = {}
         self.max_order_qty: int = 500  # Max 10 lots Nifty
         self.max_slippage_pts: float = 3.0
-        # Signal Lockout State Machine: tracks executed harmonic nodes for the active session
+        
+        # CRITICAL SAFETY: Mutex Lock & Dispatched Signals Set
+        self._mutex = threading.Lock()
+        self.dispatched_signals: Set[str] = set()
         self.executed_node_lockouts: Set[str] = set()
         self.node_lockout_history: Dict[str, dict] = {}
+        
+        # Live Execution Armed State (Default: False = Simulation Mode)
+        self.is_live_execution_armed: bool = False
+
+    def arm_live_execution(self) -> None:
+        """Arms live broker execution. Real orders will be dispatched."""
+        with self._mutex:
+            self.is_live_execution_armed = True
+            logger.warning("OMS ALERT: Live execution is now ARMED (#F43F5E). Real broker orders will be routed!")
+
+    def disarm_live_execution(self) -> None:
+        """Disarms live execution into safe Simulation Mode."""
+        with self._mutex:
+            self.is_live_execution_armed = False
+            logger.info("OMS: Switched to Simulation Mode. Broker API orders disarmed.")
 
     def get_lockout_key(self, req: BracketOrderRequest) -> str:
         """Derives canonical session lockout key for a confluence node."""
         session = req.session_date or datetime.now().strftime("%Y%m%d")
         symbol = req.symbol.strip().upper()
         node_identifier = req.node_id or req.confluence_signal_id
-        # Canonical key: YYYYMMDD_SYMBOL_NODE_SIDE (e.g. 20261107_NIFTY50_MIDPOINT_1222_BUY)
         side = "BUY" if req.is_buy else "SELL"
         return f"{session}_{symbol}_{node_identifier}_{side}"
 
     def is_node_locked(self, lockout_key: str) -> bool:
         """Checks if a harmonic node setup has already been executed in the active session."""
-        return lockout_key in self.executed_node_lockouts
+        with self._mutex:
+            return (lockout_key in self.dispatched_signals) or (lockout_key in self.executed_node_lockouts)
 
     def validate_pre_trade_risk(self, req: BracketOrderRequest) -> bool:
         """Pre-trade compliance check (sizing, bullion exclusion, risk limit)."""
@@ -518,80 +579,160 @@ class OrderManagementSystem:
         return True
 
     def dispatch_bracket_order(self, req: BracketOrderRequest) -> Tuple[bool, str]:
-        """Dispatches an atomic OCO bracket order to the broker with strict Signal Lockout protection."""
-        # 1. Pre-trade compliance & risk checks
-        if not self.validate_pre_trade_risk(req):
-            return False, "Pre-trade risk check failed."
+        """Dispatches an atomic OCO bracket order to the broker with strict Mutex Signal Lockout protection."""
+        with self._mutex:
+            # 1. Pre-trade compliance & risk checks
+            if not self.validate_pre_trade_risk(req):
+                return False, "Pre-trade risk check failed."
 
-        # 2. Signal Lockout State Machine Check: Prevent Infinite Duplicate Loop
-        lockout_key = self.get_lockout_key(req)
-        if self.is_node_locked(lockout_key):
-            logger.warning(
-                f"OMS SIGNAL LOCKOUT: Node '{lockout_key}' is already [EXECUTED]. "
-                f"Refusing duplicate order dispatch to prevent broker API flooding and account liquidation."
+            # 2. Mutex-Guarded Signal Lockout State Machine: Prevent Infinite Duplicate Loop
+            # Evaluated first to avoid consuming API rate limit tokens on duplicate spam
+            lockout_key = self.get_lockout_key(req)
+            if lockout_key in self.dispatched_signals or lockout_key in self.executed_node_lockouts:
+                logger.warning(
+                    f"OMS SIGNAL LOCKOUT: Node '{lockout_key}' is already [EXECUTED]. "
+                    f"Violently rejecting duplicate order dispatch to prevent broker API flooding and account liquidation."
+                )
+                return False, f"OMS LOCKOUT: Signal node '{lockout_key}' is already [EXECUTED] for this session."
+
+            # 3. Active Order Concurrency Protection: Reject simultaneous duplicate open orders on same instrument
+            for existing in self.active_orders.values():
+                if existing.state in (OrderState.OPEN, OrderState.PENDING_SUBMIT) and existing.symbol == req.symbol and existing.is_buy == req.is_buy:
+                    if abs(existing.price - req.entry_price) < 5.0:
+                        logger.warning(
+                            f"OMS CONCURRENCY REJECTION: Active OPEN order {existing.order_id} already exists for "
+                            f"{req.symbol} @ {existing.price}. Duplicate dispatch aborted."
+                        )
+                        return False, f"OMS CONCURRENCY: Active open order {existing.order_id} already in market."
+
+            # 4. API Rate Limiter Check (10 req/s ceiling)
+            if not self.rate_limiter.acquire():
+                logger.warning("OMS RATE LIMIT: Outbound broker API limit reached (10 req/s). Order throttled.")
+                return False, "OMS RATE LIMIT: Broker API request limit reached (10 req/s)."
+
+            # 5. ATOMIC LOCKOUT UNDER MUTEX: Immediately record before any network transmission
+            self.dispatched_signals.add(lockout_key)
+            self.executed_node_lockouts.add(lockout_key)
+
+            # 6. Generate Order Identifier & Determine Execution State
+            order_id = f"ORD_{datetime.now().strftime('%Y%m%d%H%M%S%f')[:17]}_{len(self.active_orders)+1:03d}"
+            order_state = OrderState.OPEN if self.is_live_execution_armed else OrderState.FILLED
+            mode_tag = "LIVE" if self.is_live_execution_armed else "SIMULATION"
+
+            broker_order = BrokerOrder(
+                order_id=order_id,
+                client_order_id=f"CL_{req.confluence_signal_id}",
+                symbol=req.symbol,
+                order_type=OrderType.LIMIT,
+                is_buy=req.is_buy,
+                qty=req.qty,
+                price=req.entry_price,
+                state=order_state
             )
-            return False, f"OMS LOCKOUT: Signal node '{lockout_key}' is already [EXECUTED] for this session."
+            self.active_orders[order_id] = broker_order
 
-        # 3. Active Order Concurrency Protection: Reject simultaneous duplicate open orders on same instrument
-        for existing in self.active_orders.values():
-            if existing.state == OrderState.OPEN and existing.symbol == req.symbol and existing.is_buy == req.is_buy:
-                if abs(existing.price - req.entry_price) < 5.0:
-                    logger.warning(
-                        f"OMS CONCURRENCY REJECTION: Active OPEN order {existing.order_id} already exists for "
-                        f"{req.symbol} @ {existing.price}. Duplicate dispatch aborted."
-                    )
-                    return False, f"OMS CONCURRENCY: Active open order {existing.order_id} already in market."
+            self.node_lockout_history[lockout_key] = {
+                "order_id": order_id,
+                "timestamp": datetime.now(),
+                "mode": mode_tag,
+                "symbol": req.symbol,
+                "is_buy": req.is_buy,
+                "qty": req.qty,
+                "entry_price": req.entry_price,
+                "hard_stop_price": req.hard_stop_price,
+                "target1_price": req.target1_price,
+                "target2_price": req.target2_price,
+                "status": "EXECUTED"
+            }
 
-        # 4. Generate Order Identifier & Record in OMS
-        order_id = f"ORD_{datetime.now().strftime('%Y%m%d%H%M%S')}_{len(self.active_orders)+1:03d}"
-        broker_order = BrokerOrder(
-            order_id=order_id,
-            client_order_id=f"CL_{req.confluence_signal_id}",
-            symbol=req.symbol,
-            order_type=OrderType.LIMIT,
-            is_buy=req.is_buy,
-            qty=req.qty,
-            price=req.entry_price,
-            state=OrderState.OPEN
-        )
-        self.active_orders[order_id] = broker_order
-
-        # 5. Lock Out Node: Tag as [EXECUTED] for Session Duration
-        self.executed_node_lockouts.add(lockout_key)
-        self.node_lockout_history[lockout_key] = {
-            "order_id": order_id,
-            "timestamp": datetime.now(),
-            "symbol": req.symbol,
-            "is_buy": req.is_buy,
-            "qty": req.qty,
-            "entry_price": req.entry_price,
-            "hard_stop_price": req.hard_stop_price,
-            "target1_price": req.target1_price,
-            "target2_price": req.target2_price,
-            "status": "EXECUTED"
-        }
-
-        logger.info(
-            f"OMS DISPATCH SUCCESS: Bracket Order {order_id} ({req.symbol} Qty={req.qty} "
-            f"Entry={req.entry_price} Stop={req.hard_stop_price} T1={req.target1_price} T2={req.target2_price}) | "
-            f"Node Lockout Key '{lockout_key}' tagged as [EXECUTED]."
-        )
-        return True, order_id
+            logger.info(
+                f"OMS DISPATCH SUCCESS [{mode_tag}]: Bracket Order {order_id} ({req.symbol} Qty={req.qty} "
+                f"Entry={req.entry_price} Stop={req.hard_stop_price} T1={req.target1_price} T2={req.target2_price}) | "
+                f"Node Lockout Key '{lockout_key}' tagged as [EXECUTED]."
+            )
+            return True, order_id
 
     def reset_session_lockouts(self) -> None:
         """Clears executed node lockouts (called at end-of-day / session rollover)."""
-        count = len(self.executed_node_lockouts)
-        self.executed_node_lockouts.clear()
-        logger.info(f"OMS RESET: Cleared {count} session node lockouts.")
+        with self._mutex:
+            count = len(self.executed_node_lockouts)
+            self.dispatched_signals.clear()
+            self.executed_node_lockouts.clear()
+            self.rate_limiter.reset()
+            logger.info(f"OMS RESET: Cleared {count} session node lockouts and reset API rate limiter.")
 
     def unlock_node(self, lockout_key: str) -> bool:
         """Manual operator override to release a locked node if requested."""
-        if lockout_key in self.executed_node_lockouts:
-            self.executed_node_lockouts.remove(lockout_key)
-            logger.info(f"OMS OVERRIDE: Manually unlocked node '{lockout_key}'.")
-            return True
-        return False
+        with self._mutex:
+            if lockout_key in self.executed_node_lockouts or lockout_key in self.dispatched_signals:
+                self.executed_node_lockouts.discard(lockout_key)
+                self.dispatched_signals.discard(lockout_key)
+                logger.info(f"OMS OVERRIDE: Manually unlocked node '{lockout_key}'.")
+                return True
+            return False
 
     def get_locked_nodes(self) -> List[str]:
         """Returns list of all active session node lockouts."""
-        return sorted(list(self.executed_node_lockouts))
+        with self._mutex:
+            return sorted(list(self.executed_node_lockouts))
+
+
+# ==============================================================================
+# 7. REAL-TIME CONFLUENCE EXECUTION ROUTER (SIGNAL BRIDGE)
+# ==============================================================================
+
+class RealTimeConfluenceRouter:
+    """Automated Execution Bridge wiring WebSocket Data Pump -> OHLCV Aggregator -> Confluence Radar -> OMS."""
+
+    def __init__(
+        self,
+        oms: OrderManagementSystem,
+        pump: Optional[WebSocketDataPump] = None,
+        default_lot_size: int = 50
+    ):
+        self.oms = oms
+        self.pump = pump
+        self.default_lot_size = default_lot_size
+        self.routed_orders: List[str] = []
+        self._router_lock = threading.Lock()
+
+        # If pump provided, subscribe to its bar events
+        if self.pump and hasattr(self.pump, "aggregator"):
+            self.pump.aggregator.add_bar_listener(self._on_live_bar_received)
+
+    def route_setup(
+        self,
+        setup: Any,  # SniperTradeSetup
+        symbol: str,
+        eval_time: datetime,
+        node_id: Optional[str] = None
+    ) -> Tuple[bool, str]:
+        """Directly translates a SniperTradeSetup into an atomic BracketOrderRequest and dispatches to OMS."""
+        with self._router_lock:
+            is_buy = ("LONG" in setup.direction or "CALL" in setup.direction)
+            session_str = eval_time.strftime("%Y%m%d")
+            time_node = node_id or f"CONFLUENCE_{int(setup.entry_price)}_{eval_time.strftime('%H%M%S')}"
+            signal_id = f"CONF_{session_str}_{eval_time.strftime('%H%M%S')}_{int(setup.entry_price)}"
+
+            req = BracketOrderRequest(
+                symbol=symbol,
+                is_buy=is_buy,
+                qty=self.default_lot_size,
+                entry_price=setup.entry_price,
+                hard_stop_price=setup.hard_stop_loss,
+                target1_price=setup.target_1,
+                target2_price=setup.target_2,
+                confluence_signal_id=signal_id,
+                node_id=time_node,
+                session_date=session_str,
+                tag="REAL_TIME_CONFLUENCE_RADAR"
+            )
+
+            success, result_id = self.oms.dispatch_bracket_order(req)
+            if success:
+                self.routed_orders.append(result_id)
+            return success, result_id
+
+    def _on_live_bar_received(self, bar: LiveBarEvent) -> None:
+        """Callback triggered at each 1-minute turn by LiveOHLCVAggregator."""
+        logger.debug(f"Router received 1-minute bar for {bar.symbol}: Close={bar.close}")

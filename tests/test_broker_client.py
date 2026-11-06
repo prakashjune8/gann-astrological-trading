@@ -152,7 +152,7 @@ def test_ingestion_bullion_barrier():
 
 
 def test_oms_bracket_execution():
-    print("[5/5] Testing OMS Pre-Trade Gate & OCO Bracket Router...")
+    print("[5/5] Testing OMS Pre-Trade Gate, Signal Lockout State Machine & OCO Router...")
     auth = BrokerAuthManager()
     oms = OrderManagementSystem(auth_mgr=auth)
 
@@ -164,15 +164,42 @@ def test_oms_bracket_execution():
         hard_stop_price=24182.0,  # 18.0 pt stop
         target1_price=24325.0,    # +125 pts
         target2_price=24452.0,    # +252 pts
-        confluence_signal_id="CONF_TEST_LIVE_01"
+        confluence_signal_id="CONF_TEST_LIVE_01",
+        node_id="MIDPOINT_1222_24200",
+        session_date="20261107"
     )
 
+    # 1. First Dispatch: Must succeed and tag node as [EXECUTED]
     success, order_id = oms.dispatch_bracket_order(valid_req)
-    assert success
+    assert success, f"First dispatch failed: {order_id}"
     assert order_id in oms.active_orders
     order = oms.active_orders[order_id]
     assert order.state == OrderState.OPEN
-    print(f"      Passed. Order {order_id} active in OMS.")
+
+    lockout_key = oms.get_lockout_key(valid_req)
+    assert oms.is_node_locked(lockout_key), f"Node key {lockout_key} was not locked after execution!"
+    print(f"      Initial Dispatch: Order {order_id} active. Lockout key '{lockout_key}' tagged as [EXECUTED].")
+
+    # 2. Infinite Loop Flood Test: Simulate market hovering at 24,200 for 10 seconds (20 duplicate signals)
+    duplicate_attempts = 20
+    rejected_count = 0
+    for _ in range(duplicate_attempts):
+        dup_success, dup_reason = oms.dispatch_bracket_order(valid_req)
+        if not dup_success and "OMS LOCKOUT" in dup_reason:
+            rejected_count += 1
+
+    assert rejected_count == duplicate_attempts, (
+        f"Infinite loop protection failed! {rejected_count}/{duplicate_attempts} rejected."
+    )
+    assert len(oms.active_orders) == 1, (
+        f"Active orders mutated! Expected exactly 1 order, got {len(oms.active_orders)}"
+    )
+    print(f"      Signal Lockout Shield: 20/20 duplicate flood triggers safely REJECTED. Broker API protected.")
+
+    # 3. Test Reset Session Lockouts
+    oms.reset_session_lockouts()
+    assert not oms.is_node_locked(lockout_key), "Session reset failed to clear lockout"
+    print("      Session Reset: Cleared lockouts for subsequent trading day.")
 
 
 if __name__ == "__main__":

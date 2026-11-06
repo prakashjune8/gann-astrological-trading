@@ -125,6 +125,8 @@ class BracketOrderRequest:
     target1_price: float
     target2_price: float
     confluence_signal_id: str
+    node_id: Optional[str] = None          # e.g., "MIDPOINT_1222", "SOLAR_NOON", "CARDINAL_90_1356"
+    session_date: Optional[str] = None     # e.g., "2026-11-07"
     tag: str = "GANN_CONFLUENCE_RADAR"
 
 
@@ -465,13 +467,35 @@ class KiteWebSocketDataPump(WebSocketDataPump):
 # ==============================================================================
 
 class OrderManagementSystem:
-    """Pre-trade risk gateway, order tracking state machine, and broker order router."""
+    """Pre-trade risk gateway, order tracking state machine, and broker order router.
+    
+    Includes institutional Signal Lockout State Machine:
+    Once an order is dispatched for a specific harmonic timing/price node (e.g. 12:22 Midpoint at strike 24,000),
+    the OMS tags that node as [EXECUTED] and refuses any duplicate orders for that specific setup for the rest
+    of the trading session, preventing high-frequency API flood loops and account liquidation.
+    """
 
     def __init__(self, auth_mgr: BrokerAuthManager):
         self.auth_mgr = auth_mgr
         self.active_orders: Dict[str, BrokerOrder] = {}
         self.max_order_qty: int = 500  # Max 10 lots Nifty
         self.max_slippage_pts: float = 3.0
+        # Signal Lockout State Machine: tracks executed harmonic nodes for the active session
+        self.executed_node_lockouts: Set[str] = set()
+        self.node_lockout_history: Dict[str, dict] = {}
+
+    def get_lockout_key(self, req: BracketOrderRequest) -> str:
+        """Derives canonical session lockout key for a confluence node."""
+        session = req.session_date or datetime.now().strftime("%Y%m%d")
+        symbol = req.symbol.strip().upper()
+        node_identifier = req.node_id or req.confluence_signal_id
+        # Canonical key: YYYYMMDD_SYMBOL_NODE_SIDE (e.g. 20261107_NIFTY50_MIDPOINT_1222_BUY)
+        side = "BUY" if req.is_buy else "SELL"
+        return f"{session}_{symbol}_{node_identifier}_{side}"
+
+    def is_node_locked(self, lockout_key: str) -> bool:
+        """Checks if a harmonic node setup has already been executed in the active session."""
+        return lockout_key in self.executed_node_lockouts
 
     def validate_pre_trade_risk(self, req: BracketOrderRequest) -> bool:
         """Pre-trade compliance check (sizing, bullion exclusion, risk limit)."""
@@ -494,10 +518,31 @@ class OrderManagementSystem:
         return True
 
     def dispatch_bracket_order(self, req: BracketOrderRequest) -> Tuple[bool, str]:
-        """Dispatches an atomic OCO bracket order to the broker."""
+        """Dispatches an atomic OCO bracket order to the broker with strict Signal Lockout protection."""
+        # 1. Pre-trade compliance & risk checks
         if not self.validate_pre_trade_risk(req):
             return False, "Pre-trade risk check failed."
 
+        # 2. Signal Lockout State Machine Check: Prevent Infinite Duplicate Loop
+        lockout_key = self.get_lockout_key(req)
+        if self.is_node_locked(lockout_key):
+            logger.warning(
+                f"OMS SIGNAL LOCKOUT: Node '{lockout_key}' is already [EXECUTED]. "
+                f"Refusing duplicate order dispatch to prevent broker API flooding and account liquidation."
+            )
+            return False, f"OMS LOCKOUT: Signal node '{lockout_key}' is already [EXECUTED] for this session."
+
+        # 3. Active Order Concurrency Protection: Reject simultaneous duplicate open orders on same instrument
+        for existing in self.active_orders.values():
+            if existing.state == OrderState.OPEN and existing.symbol == req.symbol and existing.is_buy == req.is_buy:
+                if abs(existing.price - req.entry_price) < 5.0:
+                    logger.warning(
+                        f"OMS CONCURRENCY REJECTION: Active OPEN order {existing.order_id} already exists for "
+                        f"{req.symbol} @ {existing.price}. Duplicate dispatch aborted."
+                    )
+                    return False, f"OMS CONCURRENCY: Active open order {existing.order_id} already in market."
+
+        # 4. Generate Order Identifier & Record in OMS
         order_id = f"ORD_{datetime.now().strftime('%Y%m%d%H%M%S')}_{len(self.active_orders)+1:03d}"
         broker_order = BrokerOrder(
             order_id=order_id,
@@ -510,8 +555,43 @@ class OrderManagementSystem:
             state=OrderState.OPEN
         )
         self.active_orders[order_id] = broker_order
+
+        # 5. Lock Out Node: Tag as [EXECUTED] for Session Duration
+        self.executed_node_lockouts.add(lockout_key)
+        self.node_lockout_history[lockout_key] = {
+            "order_id": order_id,
+            "timestamp": datetime.now(),
+            "symbol": req.symbol,
+            "is_buy": req.is_buy,
+            "qty": req.qty,
+            "entry_price": req.entry_price,
+            "hard_stop_price": req.hard_stop_price,
+            "target1_price": req.target1_price,
+            "target2_price": req.target2_price,
+            "status": "EXECUTED"
+        }
+
         logger.info(
             f"OMS DISPATCH SUCCESS: Bracket Order {order_id} ({req.symbol} Qty={req.qty} "
-            f"Entry={req.entry_price} Stop={req.hard_stop_price} T1={req.target1_price} T2={req.target2_price})"
+            f"Entry={req.entry_price} Stop={req.hard_stop_price} T1={req.target1_price} T2={req.target2_price}) | "
+            f"Node Lockout Key '{lockout_key}' tagged as [EXECUTED]."
         )
         return True, order_id
+
+    def reset_session_lockouts(self) -> None:
+        """Clears executed node lockouts (called at end-of-day / session rollover)."""
+        count = len(self.executed_node_lockouts)
+        self.executed_node_lockouts.clear()
+        logger.info(f"OMS RESET: Cleared {count} session node lockouts.")
+
+    def unlock_node(self, lockout_key: str) -> bool:
+        """Manual operator override to release a locked node if requested."""
+        if lockout_key in self.executed_node_lockouts:
+            self.executed_node_lockouts.remove(lockout_key)
+            logger.info(f"OMS OVERRIDE: Manually unlocked node '{lockout_key}'.")
+            return True
+        return False
+
+    def get_locked_nodes(self) -> List[str]:
+        """Returns list of all active session node lockouts."""
+        return sorted(list(self.executed_node_lockouts))

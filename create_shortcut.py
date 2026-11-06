@@ -1,15 +1,27 @@
+"""Configures both Windows Desktop shortcuts directly to the compiled executable."""
+import os
 import subprocess
 
-ps = """
-$Wsh = New-Object -ComObject WScript.Shell
-$Desk = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::Desktop)
-$Path = Join-Path $Desk 'Gann Celestial Tracker Pro.lnk'
-$S = $Wsh.CreateShortcut($Path)
-$S.TargetPath = 'd:\\ephemeris\\LAUNCH_APP.bat'
-$S.WorkingDirectory = 'd:\\ephemeris'
-$S.Description = 'Launch Gann Celestial Tracker Pro'
-$S.Save()
-Write-Host "Created shortcut at: $Path"
+desktop = os.path.join(os.environ["USERPROFILE"], "Desktop")
+exe_path = r"D:\ephemeris\dist\GannCelestialTrackerPro.exe"
+working_dir = r"D:\ephemeris"
+icon_path = r"D:\ephemeris\assets\app_icon.ico"
+
+ps = f"""
+$WshShell = New-Object -ComObject WScript.Shell
+$Desktop = "{desktop}"
+
+$targets = @("Gann Celestial Tracker.lnk", "Gann Celestial Tracker Pro.lnk")
+foreach ($t in $targets) {{
+    $scPath = Join-Path $Desktop $t
+    $sc = $WshShell.CreateShortcut($scPath)
+    $sc.TargetPath = "{exe_path}"
+    $sc.WorkingDirectory = "{working_dir}"
+    $sc.IconLocation = "{icon_path}"
+    $sc.Description = "Launch Gann Celestial Tracker Pro"
+    $sc.Save()
+    Write-Host "Configured shortcut: $scPath -> Target: $($sc.TargetPath)"
+}}
 """
 
 res = subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output=True, text=True)

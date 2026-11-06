@@ -70,6 +70,20 @@ def build_application():
     res = subprocess.run(cmd, cwd=base_dir)
     if res.returncode == 0:
         exe_path = os.path.join(dist_dir, "GannCelestialTrackerPro.exe")
+        alt_exe = os.path.join(dist_dir, "GannCelestialTracker.exe")
+        legacy_dir = r"D:\ANTIGRAVITY PROJECT FOLDER\ephemeris\dist\GannCelestialTracker"
+        legacy_exe = os.path.join(legacy_dir, "GannCelestialTracker.exe")
+
+        # Create binary alias copies for complete backwards compatibility
+        import shutil
+        try:
+            shutil.copy2(exe_path, alt_exe)
+            if os.path.exists(os.path.dirname(legacy_dir)):
+                os.makedirs(legacy_dir, exist_ok=True)
+                shutil.copy2(exe_path, legacy_exe)
+        except Exception:
+            pass
+
         exe_size_mb = os.path.getsize(exe_path) / (1024 * 1024) if os.path.exists(exe_path) else 0.0
         print("\n" + "=" * 65)
         print(" [SUCCESS] STANDALONE EXECUTABLE COMPILED SUCCESSFULLY!")
@@ -84,19 +98,23 @@ def build_application():
 
 
 def create_desktop_shortcut(exe_path: str, working_dir: str, icon_path: str):
-    """Creates a Windows desktop shortcut (.lnk) via PowerShell."""
-    print("\nUpdating Windows Desktop Shortcut...")
+    """Creates/Updates both Windows desktop shortcuts (.lnk) via PowerShell."""
+    print("\nUpdating Windows Desktop Shortcuts...")
+    desktop = os.path.join(os.environ["USERPROFILE"], "Desktop")
     ps_cmd = f"""
     $WshShell = New-Object -ComObject WScript.Shell
-    $Desktop = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::Desktop)
-    $ShortcutPath = Join-Path $Desktop "Gann Celestial Tracker Pro.lnk"
-    $Shortcut = $WshShell.CreateShortcut($ShortcutPath)
-    $Shortcut.TargetPath = "{exe_path}"
-    $Shortcut.WorkingDirectory = "{working_dir}"
-    $Shortcut.IconLocation = "{icon_path}"
-    $Shortcut.Description = "Launch Gann Celestial Tracker Pro"
-    $Shortcut.Save()
-    Write-Host "Desktop shortcut created at: $ShortcutPath"
+    $Desktop = "{desktop}"
+    $names = @("Gann Celestial Tracker Pro.lnk", "Gann Celestial Tracker.lnk")
+    foreach ($name in $names) {{
+        $ShortcutPath = Join-Path $Desktop $name
+        $Shortcut = $WshShell.CreateShortcut($ShortcutPath)
+        $Shortcut.TargetPath = "{exe_path}"
+        $Shortcut.WorkingDirectory = "{working_dir}"
+        $Shortcut.IconLocation = "{icon_path}"
+        $Shortcut.Description = "Launch Gann Celestial Tracker Pro"
+        $Shortcut.Save()
+        Write-Host "Desktop shortcut configured: $ShortcutPath"
+    }}
     """
     res = subprocess.run(["powershell", "-NoProfile", "-Command", ps_cmd], capture_output=True, text=True)
     out = res.stdout.strip() or res.stderr.strip()

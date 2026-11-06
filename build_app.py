@@ -22,6 +22,15 @@ def build_application():
     assets_dir = os.path.join(base_dir, "assets")
     icon_path = os.path.join(assets_dir, "app_icon.ico")
 
+    # Terminate any running instances to prevent Windows file locks (WinError 5 Access Denied)
+    try:
+        subprocess.run(
+            ["powershell", "-NoProfile", "-Command", "Get-Process -Name *Gann* -ErrorAction SilentlyContinue | Stop-Process -Force"],
+            capture_output=True
+        )
+    except Exception:
+        pass
+
     # Ensure icon exists
     if not os.path.exists(icon_path):
         print("[WARN] assets/app_icon.ico not found, building default icon...")

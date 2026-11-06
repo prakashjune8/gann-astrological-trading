@@ -11,6 +11,7 @@ import math
 import os
 import struct
 import subprocess
+import sys
 import threading
 import wave
 from typing import Optional

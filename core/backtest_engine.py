@@ -102,11 +102,18 @@ class IndianFeeModel:
         return net_pnl, breakdown
 
 
+class OrderRole(Enum):
+    """Execution role determining slippage dynamics."""
+    MAKER = "MAKER"  # Resting limit order (Target 1, Target 2) -> Zero adverse slippage
+    TAKER = "TAKER"  # Market/Stop order (Market entry, Stop-Loss, Session Close) -> Adverse half-spread + impact
+
+
 class SlippageModel:
-    """Institutional Slippage Model incorporating bid/ask spread and market impact.
+    """Institutional Slippage Model incorporating bid/ask spread, market impact, and Maker vs Taker roles.
     
-    Formula:
-      Fill Price = MidPrice +/- (Spread/2 + Volatility_Intra * sqrt(OrderQty / BarVolume))
+    Formulas:
+      - Maker (Resting Limit): Fill = LimitPrice (0.0 adverse slippage)
+      - Taker (Aggressive Market/Stop): Fill = MidPrice +/- (Spread/2 + Volatility_Intra * sqrt(OrderQty / BarVolume))
     """
 
     def __init__(self, half_spread_pts: float = 0.5, impact_coeff: float = 0.1):
@@ -117,18 +124,21 @@ class SlippageModel:
         self,
         base_price: float,
         is_buy: bool,
+        order_role: OrderRole = OrderRole.TAKER,
         order_qty: int = 50,  # 1 lot Nifty
         bar_volume: int = 5000,
         bar_high: Optional[float] = None,
         bar_low: Optional[float] = None
     ) -> Tuple[float, float]:
-        """Calculates executed fill price and slippage points."""
+        """Calculates executed fill price and slippage points based on Maker vs Taker role."""
+        if order_role == OrderRole.MAKER:
+            # Maker (resting limit order): executed at exact target price with zero adverse slippage
+            return round(base_price, 2), 0.0
+
+        # Taker: incurs adverse half-spread + volume impact slippage
         safe_volume = max(1, bar_volume)
         volume_impact = self.impact_coeff * np.sqrt(order_qty / safe_volume)
-
-        # Volatility wiggle
-        spread_component = self.half_spread_pts
-        total_slippage = spread_component + volume_impact
+        total_slippage = self.half_spread_pts + volume_impact
 
         if is_buy:
             fill_price = base_price + total_slippage
@@ -168,6 +178,7 @@ class TradeSignal:
     hard_stop_points: float = 18.0
     target1_points: float = 125.0
     target2_points: float = 252.0
+    is_reentry: bool = False
     reason: str = "Triple Confluence Trigger"
 
 
@@ -195,6 +206,11 @@ class ExecutedTrade:
     holding_minutes: int = 0
     fees: Optional[FeeBreakdown] = None
     is_closed: bool = False
+    is_reentry: bool = False
+    entry_order_role: OrderRole = OrderRole.TAKER
+    exit_order_role: OrderRole = OrderRole.TAKER
+    entry_slippage_pts: float = 0.0
+    exit_slippage_pts: float = 0.0
 
 
 # ==============================================================================
@@ -208,17 +224,21 @@ class EventDrivenBacktester:
     - Zero look-ahead: signals from bar T_t fill at T_{t+1} Open with latency.
     - Continuous MFE and MAE recording across every intra-trade 1-minute bar.
     - Exact Indian exchange fee deduction on trade resolution.
+    - Maker vs Taker slippage differentiation.
+    - Single immediate re-entry on 18-point whipsaw stops.
     """
 
     def __init__(
         self,
         slippage_model: Optional[SlippageModel] = None,
         latency_sim: Optional[NetworkLatencySimulator] = None,
-        contract_lot_size: int = 50  # Nifty 50 lot size
+        contract_lot_size: int = 50,  # Nifty 50 lot size
+        allow_immediate_reentry: bool = True
     ):
         self.slippage = slippage_model or SlippageModel()
         self.latency = latency_sim or NetworkLatencySimulator()
         self.lot_size = contract_lot_size
+        self.allow_immediate_reentry = allow_immediate_reentry
 
     def simulate(
         self,
@@ -263,6 +283,7 @@ class EventDrivenBacktester:
                     fill_p, slip = self.slippage.calculate_fill_price(
                         base_price=b_open,
                         is_buy=is_buy,
+                        order_role=OrderRole.TAKER,
                         order_qty=self.lot_size,
                         bar_volume=b_vol,
                         bar_high=b_high,
@@ -289,7 +310,10 @@ class EventDrivenBacktester:
                         stop_price=stop_p,
                         target1_price=t1_p,
                         target2_price=t2_p,
-                        qty=self.lot_size
+                        qty=self.lot_size,
+                        is_reentry=sig.is_reentry,
+                        entry_order_role=OrderRole.TAKER,
+                        entry_slippage_pts=slip
                     )
                     active_trades.append(trade)
 
@@ -307,19 +331,45 @@ class EventDrivenBacktester:
                     trd.mfe_points = max(trd.mfe_points, fwd_high)
                     trd.mae_points = min(trd.mae_points, fwd_low)  # Negative drawdown
 
-                    # Stop check
+                    # Stop check (Taker order execution)
                     if b_low <= trd.stop_price:
-                        self._close_trade(trd, curr_bar_time, trd.stop_price, ExitReason.HARD_STOP)
+                        self._close_trade(
+                            trd, curr_bar_time, trd.stop_price, ExitReason.HARD_STOP,
+                            bar_volume=b_vol, bar_high=b_high, bar_low=b_low
+                        )
                         completed_trades.append(trd)
+
+                        # Immediate Re-entry if stopped out by initial whipsaw (max 1 re-entry)
+                        if self.allow_immediate_reentry and not trd.is_reentry:
+                            reentry_sig = TradeSignal(
+                                signal_id=f"{trd.signal_id}_REENTRY",
+                                signal_time=curr_bar_time,
+                                direction=trd.direction,
+                                reference_price=b_close,
+                                hard_stop_points=18.0,
+                                target1_points=trd.target1_price - trd.entry_price,
+                                target2_points=trd.target2_price - trd.entry_price,
+                                is_reentry=True,
+                                reason=f"Immediate Re-entry after Whipsaw Stop on {trd.signal_id}"
+                            )
+                            pending_orders.append((curr_bar_time, reentry_sig))
                         continue
-                    # Target 2 check
+
+                    # Target 2 check (Maker resting limit order execution)
                     elif b_high >= trd.target2_price:
-                        self._close_trade(trd, curr_bar_time, trd.target2_price, ExitReason.TARGET_2)
+                        self._close_trade(
+                            trd, curr_bar_time, trd.target2_price, ExitReason.TARGET_2,
+                            bar_volume=b_vol, bar_high=b_high, bar_low=b_low
+                        )
                         completed_trades.append(trd)
                         continue
-                    # Target 1 check
+
+                    # Target 1 check (Maker resting limit order execution)
                     elif b_high >= trd.target1_price:
-                        self._close_trade(trd, curr_bar_time, trd.target1_price, ExitReason.TARGET_1)
+                        self._close_trade(
+                            trd, curr_bar_time, trd.target1_price, ExitReason.TARGET_1,
+                            bar_volume=b_vol, bar_high=b_high, bar_low=b_low
+                        )
                         completed_trades.append(trd)
                         continue
 
@@ -329,25 +379,54 @@ class EventDrivenBacktester:
                     trd.mfe_points = max(trd.mfe_points, fwd_high)
                     trd.mae_points = min(trd.mae_points, fwd_low)  # Negative drawdown
 
-                    # Stop check
+                    # Stop check (Taker order execution)
                     if b_high >= trd.stop_price:
-                        self._close_trade(trd, curr_bar_time, trd.stop_price, ExitReason.HARD_STOP)
+                        self._close_trade(
+                            trd, curr_bar_time, trd.stop_price, ExitReason.HARD_STOP,
+                            bar_volume=b_vol, bar_high=b_high, bar_low=b_low
+                        )
                         completed_trades.append(trd)
+
+                        # Immediate Re-entry if stopped out by initial whipsaw (max 1 re-entry)
+                        if self.allow_immediate_reentry and not trd.is_reentry:
+                            reentry_sig = TradeSignal(
+                                signal_id=f"{trd.signal_id}_REENTRY",
+                                signal_time=curr_bar_time,
+                                direction=trd.direction,
+                                reference_price=b_close,
+                                hard_stop_points=18.0,
+                                target1_points=trd.entry_price - trd.target1_price,
+                                target2_points=trd.entry_price - trd.target2_price,
+                                is_reentry=True,
+                                reason=f"Immediate Re-entry after Whipsaw Stop on {trd.signal_id}"
+                            )
+                            pending_orders.append((curr_bar_time, reentry_sig))
                         continue
-                    # Target 2 check
+
+                    # Target 2 check (Maker resting limit order execution)
                     elif b_low <= trd.target2_price:
-                        self._close_trade(trd, curr_bar_time, trd.target2_price, ExitReason.TARGET_2)
-                        completed_trades.append(trd)
-                        continue
-                    # Target 1 check
-                    elif b_low <= trd.target1_price:
-                        self._close_trade(trd, curr_bar_time, trd.target1_price, ExitReason.TARGET_1)
+                        self._close_trade(
+                            trd, curr_bar_time, trd.target2_price, ExitReason.TARGET_2,
+                            bar_volume=b_vol, bar_high=b_high, bar_low=b_low
+                        )
                         completed_trades.append(trd)
                         continue
 
-                # EOD Auto Square-off
+                    # Target 1 check (Maker resting limit order execution)
+                    elif b_low <= trd.target1_price:
+                        self._close_trade(
+                            trd, curr_bar_time, trd.target1_price, ExitReason.TARGET_1,
+                            bar_volume=b_vol, bar_high=b_high, bar_low=b_low
+                        )
+                        completed_trades.append(trd)
+                        continue
+
+                # EOD Auto Square-off (Taker market on close)
                 if curr_bar_time.time() >= eod_square_off_time:
-                    self._close_trade(trd, curr_bar_time, b_close, ExitReason.SESSION_CLOSE)
+                    self._close_trade(
+                        trd, curr_bar_time, b_close, ExitReason.SESSION_CLOSE,
+                        bar_volume=b_vol, bar_high=b_high, bar_low=b_low
+                    )
                     completed_trades.append(trd)
                     continue
 
@@ -370,8 +449,12 @@ class EventDrivenBacktester:
         # Close any lingering active trades at simulation termination
         final_time = timestamps[-1]
         final_close = float(df.iloc[-1]["close"])
+        final_vol = int(df.iloc[-1]["volume"])
         for trd in active_trades:
-            self._close_trade(trd, final_time, final_close, ExitReason.SESSION_CLOSE)
+            self._close_trade(
+                trd, final_time, final_close, ExitReason.SESSION_CLOSE,
+                bar_volume=final_vol
+            )
             completed_trades.append(trd)
 
         return completed_trades
@@ -380,14 +463,37 @@ class EventDrivenBacktester:
         self,
         trade: ExecutedTrade,
         exit_dt: datetime,
-        exit_price: float,
-        reason: ExitReason
+        base_exit_price: float,
+        reason: ExitReason,
+        bar_volume: int = 5000,
+        bar_high: Optional[float] = None,
+        bar_low: Optional[float] = None
     ) -> None:
-        """Closes trade, computes gross P&L, deducts Indian fees, and records net P&L."""
+        """Closes trade with Maker vs Taker slippage differentiation, computes P&L and fees."""
         trade.exit_time = exit_dt
-        trade.exit_price = round(exit_price, 2)
         trade.exit_reason = reason
         trade.is_closed = True
+
+        # Maker vs Taker Slippage Differentiation
+        if reason in (ExitReason.TARGET_1, ExitReason.TARGET_2):
+            trade.exit_order_role = OrderRole.MAKER
+            trade.exit_price = round(base_exit_price, 2)
+            trade.exit_slippage_pts = 0.0
+        else:
+            trade.exit_order_role = OrderRole.TAKER
+            # Long trades sell to exit (is_buy=False); Short trades buy to exit (is_buy=True)
+            is_buy_to_exit = (trade.direction == TradeDirection.SHORT)
+            fill_p, slip = self.slippage.calculate_fill_price(
+                base_price=base_exit_price,
+                is_buy=is_buy_to_exit,
+                order_role=OrderRole.TAKER,
+                order_qty=trade.qty,
+                bar_volume=bar_volume,
+                bar_high=bar_high,
+                bar_low=bar_low
+            )
+            trade.exit_price = fill_p
+            trade.exit_slippage_pts = slip
 
         if trade.direction == TradeDirection.LONG:
             pts = trade.exit_price - trade.entry_price
@@ -510,6 +616,11 @@ class TradeLedger:
                 "mfe_points": t.mfe_points,
                 "mae_points": t.mae_points,
                 "holding_minutes": t.holding_minutes,
+                "is_reentry": t.is_reentry,
+                "entry_order_role": t.entry_order_role.value if hasattr(t.entry_order_role, 'value') else str(t.entry_order_role),
+                "exit_order_role": t.exit_order_role.value if hasattr(t.exit_order_role, 'value') else str(t.exit_order_role),
+                "entry_slippage_pts": t.entry_slippage_pts,
+                "exit_slippage_pts": t.exit_slippage_pts,
                 "return_pct": round((t.net_pnl_inr / max(1.0, t.entry_price * t.qty)) * 100.0, 3)
             })
 

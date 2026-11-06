@@ -169,19 +169,26 @@ def test_short_trade_hard_stop():
 
     backtester = EventDrivenBacktester(
         slippage_model=SlippageModel(half_spread_pts=0.5, impact_coeff=0.0),
-        contract_lot_size=50
+        contract_lot_size=50,
+        allow_immediate_reentry=True
     )
     trades = backtester.simulate(df_1m, [sig])
-    assert len(trades) == 1
+    # With immediate re-entry enabled, initial trade stops out and triggers a single re-entry trade
+    assert len(trades) == 2, f"Expected 2 trades (initial + immediate re-entry), got {len(trades)}"
     trd = trades[0]
+    reentry_trd = trades[1]
 
-    # Entry at 10:02 open: 21510.0 - 0.5 = 21509.5
-    # Short Stop = 21509.5 + 18.0 = 21527.5
-    # Bar index 3 (10:03) high reached 21536.0, breaching 21527.5
+    # Verify initial trade: stopped out with Taker slippage
     assert trd.exit_reason == ExitReason.HARD_STOP, f"Expected HARD_STOP, got {trd.exit_reason}"
-    assert trd.gross_pnl_points == -18.0
+    assert trd.is_reentry is False
+    assert trd.exit_order_role.value == "TAKER"
+    assert trd.exit_slippage_pts >= 0.5, "Taker stop exit must incur adverse slippage"
     assert trd.net_pnl_inr < 0.0
-    print(f"      Passed. Short Hard Stop accurately executed at {trd.exit_price} (-18.0 pts). Loss: ₹{trd.net_pnl_inr:,.2f}")
+
+    # Verify single immediate re-entry trade
+    assert reentry_trd.is_reentry is True
+    assert reentry_trd.signal_id == f"{trd.signal_id}_REENTRY"
+    print(f"      Passed. Initial Stop: INR {trd.net_pnl_inr:,.2f} -> Single Immediate Re-entry Launched: {reentry_trd.trade_id}")
 
 
 if __name__ == "__main__":

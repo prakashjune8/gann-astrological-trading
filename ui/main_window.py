@@ -22,6 +22,7 @@ from core.price_harmonics import PriceHarmonicsEngine
 from reporting.pdf_daily_summary import DailyPdfReportGenerator
 from ui.components.academy_guide_view import AcademyGuideView
 from ui.components.alert_ledger_view import AlertLedgerView
+from ui.components.backtest_view import BacktestView
 from ui.components.celestial_wheel_view import CelestialWheelView
 from ui.components.control_deck_view import ControlDeckView
 from ui.components.custom_script_dialog import CustomScriptDialog
@@ -123,6 +124,7 @@ class MainWindow(ctk.CTk):
         self.view_wheel = CelestialWheelView(self.center_workspace, theme=self.theme)
         self.view_split = DualSplitView(self.center_workspace, theme=self.theme)
         self.view_academy = AcademyGuideView(self.center_workspace, theme=self.theme)
+        self.view_backtest = BacktestView(self.center_workspace, theme=self.theme)
 
         # 5. Bottom Alert Ledger & Status Banner
         self.alert_ledger = AlertLedgerView(self, theme=self.theme)
@@ -315,7 +317,7 @@ class MainWindow(ctk.CTk):
         ).pack(side="left", padx=2)
 
     def _activate_view(self, view_key: str):
-        for v in [self.view_deck, self.view_wheel, self.view_split, self.view_academy]:
+        for v in [self.view_deck, self.view_wheel, self.view_split, self.view_academy, self.view_backtest]:
             v.pack_forget()
 
         if view_key == "CONTROL_DECK":
@@ -324,6 +326,8 @@ class MainWindow(ctk.CTk):
             self.view_wheel.pack(fill="both", expand=True)
         elif view_key == "ACADEMY":
             self.view_academy.pack(fill="both", expand=True)
+        elif view_key == "BACKTEST":
+            self.view_backtest.pack(fill="both", expand=True)
         else:  # DUAL_SPLIT
             self.view_split.pack(fill="both", expand=True)
 
@@ -367,6 +371,8 @@ class MainWindow(ctk.CTk):
             self.view_wheel.apply_theme(self.theme)
         if hasattr(self, "view_split"):
             self.view_split.apply_theme(self.theme)
+        if hasattr(self, "view_backtest"):
+            self.view_backtest.apply_theme(self.theme)
         if hasattr(self, "alert_ledger"):
             self.alert_ledger.apply_theme(self.theme)
 

@@ -63,3 +63,11 @@ class AlertLedgerView(ctk.CTkFrame):
     def set_banner_alert(self, alert_text: str, is_critical: bool = False):
         color = self.theme.accent_red if is_critical else self.theme.accent_amber
         self.lbl_banner.configure(text=f"ACTIVE TRIGGER: {alert_text}", text_color=color)
+
+    def apply_theme(self, theme: ThemeTokens):
+        """Update colors dynamically when theme swaps."""
+        self.theme = theme
+        self.configure(fg_color=theme.bg_secondary)
+        self.banner_frame.configure(fg_color=theme.bg_accent)
+        self.ledger_scroll.configure(fg_color=theme.bg_card)
+

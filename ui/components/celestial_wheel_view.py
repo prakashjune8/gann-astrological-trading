@@ -10,6 +10,8 @@ Features:
   - 120° Trine (Green)
   - 180° Opposition (Crimson)
 - Real-time Market Price Needle showing where active script's price projects on the wheel.
+- Dynamic Harmonic Layer Filtering (Cardinal 90°, Fixed 45°, 50% Eq, Planetary).
+- Dynamic DPI transition and 150ms resize debounce.
 """
 from __future__ import annotations
 
@@ -34,6 +36,7 @@ class CelestialWheelView(ctk.CTkFrame):
         self.planets_data: dict[str, float] = {}
         self.aspects_data: list[dict] = []
         self.price_needle_deg: Optional[float] = None
+        self.active_layer: str = "All Overlays Active"
         self._debounce_id = None
 
     def _build_canvas(self):
@@ -52,15 +55,24 @@ class CelestialWheelView(ctk.CTkFrame):
             self.after_cancel(self._debounce_id)
         self._debounce_id = self.after(150, self.redraw)
 
+    def apply_theme(self, theme: ThemeTokens):
+        """Dynamically update visual colors when theme swaps without app restart."""
+        self.theme = theme
+        self.configure(fg_color=theme.bg_primary)
+        self.canvas.configure(bg=theme.wheel_bg)
+        self.redraw()
+
     def update_wheel_data(
         self,
         planets: dict[str, float],
         aspects: list[dict],
-        price_angle: Optional[float] = None
+        price_angle: Optional[float] = None,
+        active_layer: str = "All Overlays Active"
     ):
         self.planets_data = planets
         self.aspects_data = aspects
         self.price_needle_deg = price_angle
+        self.active_layer = active_layer
         self.redraw()
 
     def redraw(self):
@@ -96,7 +108,6 @@ class CelestialWheelView(ctk.CTkFrame):
         for i in range(12):
             deg = i * 30.0
             rad = math.radians(deg)
-            # Standard counter-clockwise orientation from East (0°)
             x1 = cx + r_inner * math.cos(rad)
             y1 = cy - r_inner * math.sin(rad)
             x2 = cx + radius * math.cos(rad)
@@ -113,15 +124,52 @@ class CelestialWheelView(ctk.CTkFrame):
                 fill=self.theme.text_secondary, font=("Helvetica", 9, "bold")
             )
 
-        # 3. Draw Cardinal Cross (0°, 90°, 180°, 270°) subtle axes
+        # 3. Draw Cardinal Cross (0°, 90°, 180°, 270°)
+        is_cardinal_focus = (self.active_layer == "Only Cardinal (90°)")
+        card_color = self.theme.accent_amber if is_cardinal_focus else self.theme.border_color
+        card_width = 2.0 if is_cardinal_focus else 1.0
+        card_dash = () if is_cardinal_focus else (2, 4)
+
         for deg in [0.0, 90.0, 180.0, 270.0]:
             rad = math.radians(deg)
             x = cx + r_inner * math.cos(rad)
             y = cy - r_inner * math.sin(rad)
-            self.canvas.create_line(cx, cy, x, y, fill=self.theme.border_color, dash=(2, 4))
+            self.canvas.create_line(cx, cy, x, y, fill=card_color, width=card_width, dash=card_dash)
 
-        # 4. Draw Geometric Aspect Lines between Planets
-        for asp in self.aspects_data[:12]:
+        # 4. Draw Fixed Cross Diagonals (45°, 135°, 225°, 315°)
+        is_fixed_focus = (self.active_layer == "Only Fixed (45°)")
+        fixed_color = self.theme.accent_purple if is_fixed_focus else self.theme.border_color
+        fixed_width = 2.0 if is_fixed_focus else 1.0
+        fixed_dash = () if is_fixed_focus else (1, 5)
+
+        for deg in [45.0, 135.0, 225.0, 315.0]:
+            rad = math.radians(deg)
+            x = cx + r_inner * math.cos(rad)
+            y = cy - r_inner * math.sin(rad)
+            self.canvas.create_line(cx, cy, x, y, fill=fixed_color, width=fixed_width, dash=fixed_dash)
+
+        # 5. Draw 50% / 180° Equilibrium Line
+        if self.active_layer in ("50% Eq Only", "All Overlays Active"):
+            rad_180 = math.radians(180.0)
+            x_180 = cx + r_inner * math.cos(rad_180)
+            y_180 = cy - r_inner * math.sin(rad_180)
+            rad_0 = math.radians(0.0)
+            x_0 = cx + r_inner * math.cos(rad_0)
+            y_0 = cy - r_inner * math.sin(rad_0)
+            self.canvas.create_line(x_0, y_0, x_180, y_180, fill=self.theme.accent_green, width=2 if self.active_layer == "50% Eq Only" else 1)
+
+        # 6. Draw Geometric Aspect Lines between Planets (filtered by active layer)
+        aspects_to_draw = self.aspects_data
+        if is_cardinal_focus:
+            # Filter to 90° (Square) and 180° (Opposition)
+            aspects_to_draw = [a for a in self.aspects_data if a.get("color") in (self.theme.accent_red, "#ef4444", "#e11d48")]
+        elif is_fixed_focus:
+            # Filter to 45° (Semi-square)
+            aspects_to_draw = [a for a in self.aspects_data if a.get("color") in (self.theme.accent_purple, "#8b5cf6")]
+        elif self.active_layer == "50% Eq Only":
+            aspects_to_draw = []
+
+        for asp in aspects_to_draw[:15]:
             b1 = asp.get("b1", "")
             b2 = asp.get("b2", "")
             if b1 in self.planets_data and b2 in self.planets_data:
@@ -135,20 +183,21 @@ class CelestialWheelView(ctk.CTkFrame):
                 w_line = 2 if asp.get("is_exact", False) else 1
                 self.canvas.create_line(px1, py1, px2, py2, fill=color, width=w_line)
 
-        # 5. Draw Price Needle (if active)
+        # 7. Draw Price Needle (Square of Nine Price-to-Degree projection)
         if self.price_needle_deg is not None:
             p_rad = math.radians(self.price_needle_deg)
             nx = cx + (radius * 0.98) * math.cos(p_rad)
             ny = cy - (radius * 0.98) * math.sin(p_rad)
+            needle_w = 3.0 if self.active_layer == "50% Eq Only" else 2.5
             self.canvas.create_line(
-                cx, cy, nx, ny, fill=self.theme.accent_blue, width=2.5, arrow=tk.LAST
+                cx, cy, nx, ny, fill=self.theme.accent_blue, width=needle_w, arrow=tk.LAST
             )
             self.canvas.create_text(
                 cx, cy, text=f"CMP\n{self.price_needle_deg:.1f}°",
                 fill=self.theme.accent_blue, font=("Helvetica", 8, "bold")
             )
 
-        # 6. Draw Planet Markers & Degree Tags on Perimeter
+        # 8. Draw Planet Markers & Degree Tags on Perimeter
         r_planet = radius * 1.08
         for name, lon in self.planets_data.items():
             rad = math.radians(lon)

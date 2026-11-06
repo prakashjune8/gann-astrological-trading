@@ -41,21 +41,21 @@ class TopBarComponent(ctk.CTkFrame):
         brand_frame = ctk.CTkFrame(self, fg_color="transparent")
         brand_frame.pack(side="left", padx=16)
 
-        title_lbl = ctk.CTkLabel(
+        self.title_lbl = ctk.CTkLabel(
             brand_frame,
             text="GANN CELESTIAL TRACKER PRO",
             font=ctk.CTkFont(size=14, weight="bold"),
             text_color=self.theme.accent_blue
         )
-        title_lbl.pack(side="top", anchor="w")
+        self.title_lbl.pack(side="top", anchor="w")
 
-        sub_lbl = ctk.CTkLabel(
+        self.sub_lbl = ctk.CTkLabel(
             brand_frame,
             text="Institutional Astro-Harmonic Terminal • India (IST)",
             font=ctk.CTkFont(size=10),
             text_color=self.theme.text_muted
         )
-        sub_lbl.pack(side="top", anchor="w")
+        self.sub_lbl.pack(side="top", anchor="w")
 
         # Live IST Clock
         self.clock_lbl = ctk.CTkLabel(
@@ -72,7 +72,7 @@ class TopBarComponent(ctk.CTkFrame):
 
         # Operating Mode Switcher (Live vs Simulation)
         self.mode_var = ctk.StringVar(value=initial_mode)
-        mode_seg = ctk.CTkSegmentedButton(
+        self.mode_seg = ctk.CTkSegmentedButton(
             right_frame,
             values=["LIVE", "SIMULATION"],
             variable=self.mode_var,
@@ -81,7 +81,7 @@ class TopBarComponent(ctk.CTkFrame):
             font=ctk.CTkFont(size=11, weight="bold"),
             height=28
         )
-        mode_seg.pack(side="left", padx=8)
+        self.mode_seg.pack(side="left", padx=8)
 
         # View Switcher Dropdown
         view_map_rev = {
@@ -90,7 +90,7 @@ class TopBarComponent(ctk.CTkFrame):
             "DUAL_SPLIT": "Dual Split View"
         }
         self.view_var = ctk.StringVar(value=view_map_rev.get(initial_view, "Dual Split View"))
-        view_menu = ctk.CTkOptionMenu(
+        self.view_menu = ctk.CTkOptionMenu(
             right_frame,
             values=["Master Control Deck", "360° Celestial Wheel", "Dual Split View"],
             variable=self.view_var,
@@ -102,7 +102,7 @@ class TopBarComponent(ctk.CTkFrame):
             height=28,
             width=165
         )
-        view_menu.pack(side="left", padx=8)
+        self.view_menu.pack(side="left", padx=8)
 
         # Global Geo / Helio Toggle Button
         self.frame_btn = ctk.CTkButton(
@@ -156,3 +156,21 @@ class TopBarComponent(ctk.CTkFrame):
 
     def update_clock(self, dt_ist: datetime):
         self.clock_lbl.configure(text=dt_ist.strftime("%H:%M:%S IST"))
+
+    def apply_theme(self, theme: ThemeTokens):
+        """Update top bar components with newly selected theme tokens."""
+        self.theme = theme
+        self.configure(fg_color=theme.bg_secondary)
+        self.title_lbl.configure(text_color=theme.accent_blue)
+        self.sub_lbl.configure(text_color=theme.text_muted)
+        self.clock_lbl.configure(text_color=theme.text_primary)
+        self.mode_seg.configure(selected_color=theme.accent_blue)
+        self.view_menu.configure(fg_color=theme.bg_accent, button_color=theme.accent_blue, text_color=theme.text_primary)
+        self.frame_btn.configure(
+            fg_color=theme.bg_accent,
+            hover_color=theme.border_color,
+            text_color=theme.accent_amber if self.current_frame == "HELIOCENTRIC" else theme.accent_blue
+        )
+        theme_icon = "☀ Light" if self.current_theme == "DARK" else "🌙 Dark"
+        self.theme_btn.configure(text=theme_icon, fg_color=theme.bg_accent, text_color=theme.text_primary)
+

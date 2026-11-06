@@ -19,6 +19,15 @@ class ControlDeckView(ctk.CTkScrollableFrame):
         self._build_planets_grid()
         self._build_price_levels_table()
 
+    def apply_theme(self, theme: ThemeTokens):
+        """Update colors dynamically when theme toggles."""
+        self.theme = theme
+        self.configure(fg_color=theme.bg_primary)
+        if hasattr(self, "summary_frame"):
+            self.summary_frame.configure(fg_color=theme.bg_card)
+        if hasattr(self, "table_frame"):
+            self.table_frame.configure(fg_color=theme.bg_card)
+
     def _build_header_cards(self):
         """Top summary strip: Active Script, Session Circle, Solar Noon, 50% Equilibrium."""
         self.summary_frame = ctk.CTkFrame(self, fg_color=self.theme.bg_card, corner_radius=8)

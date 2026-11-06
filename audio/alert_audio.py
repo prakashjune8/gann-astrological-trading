@@ -21,8 +21,11 @@ class AlertAudioEngine:
 
     def __init__(self, sounds_dir: Optional[str] = None):
         if sounds_dir is None:
-            base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            sounds_dir = os.path.join(base, "audio", "sounds")
+            if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+                sounds_dir = os.path.join(sys._MEIPASS, "audio", "sounds")
+            else:
+                base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                sounds_dir = os.path.join(base, "audio", "sounds")
         self.sounds_dir = sounds_dir
         os.makedirs(self.sounds_dir, exist_ok=True)
         self.chime_path = os.path.join(self.sounds_dir, "pivot_chime.wav")

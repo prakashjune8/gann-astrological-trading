@@ -57,6 +57,9 @@ class MarketCalendarManager:
             Path(__file__).resolve().parent.parent / "holidays_india.json",
             Path(__file__).resolve().parent.parent / "data" / "holidays_india.json",
         ]
+        if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+            candidates.insert(0, Path(sys._MEIPASS) / "holidays_india.json")
+            candidates.insert(1, Path(sys._MEIPASS) / "data" / "holidays_india.json")
         for p in candidates:
             if p.is_file():
                 return p

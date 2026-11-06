@@ -57,8 +57,22 @@ class StateManager:
 
     def __init__(self, config_path: Optional[str] = None):
         if config_path is None:
-            base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            config_path = os.path.join(base, "user_preferences.json")
+            if getattr(sys, "frozen", False):
+                local_appdata = os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))
+                app_dir = os.path.join(local_appdata, "GannCelestialTrackerPro")
+                os.makedirs(app_dir, exist_ok=True)
+                config_path = os.path.join(app_dir, "user_preferences.json")
+                if hasattr(sys, "_MEIPASS") and not os.path.exists(config_path):
+                    meipass_cfg = os.path.join(sys._MEIPASS, "user_preferences.json")
+                    if os.path.exists(meipass_cfg):
+                        import shutil
+                        try:
+                            shutil.copy2(meipass_cfg, config_path)
+                        except Exception:
+                            pass
+            else:
+                base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                config_path = os.path.join(base, "user_preferences.json")
         self.config_path = config_path
         self.prefs = self.load_preferences()
 

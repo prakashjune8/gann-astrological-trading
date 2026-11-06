@@ -54,9 +54,22 @@ class HorizonsClient:
 
     def __init__(self, cache_dir: Optional[str] = None):
         if cache_dir is None:
-            # Default to .cache directory in project root
-            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            cache_dir = os.path.join(base_dir, ".cache")
+            if getattr(sys, "frozen", False):
+                local_appdata = os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))
+                cache_dir = os.path.join(local_appdata, "GannCelestialTrackerPro", ".cache")
+                os.makedirs(cache_dir, exist_ok=True)
+                if hasattr(sys, "_MEIPASS"):
+                    meipass_db = os.path.join(sys._MEIPASS, ".cache", "horizons_cache.sqlite3")
+                    local_db = os.path.join(cache_dir, "horizons_cache.sqlite3")
+                    if os.path.exists(meipass_db) and not os.path.exists(local_db):
+                        import shutil
+                        try:
+                            shutil.copy2(meipass_db, local_db)
+                        except Exception:
+                            pass
+            else:
+                base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                cache_dir = os.path.join(base_dir, ".cache")
         os.makedirs(cache_dir, exist_ok=True)
         self.db_path = os.path.join(cache_dir, "horizons_cache.sqlite3")
         self._init_db()

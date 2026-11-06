@@ -99,6 +99,19 @@ class AcademyGuideView(ctk.CTkFrame):
         )
         title_lbl.pack(side="left")
 
+        btn_export_pdf = ctk.CTkButton(
+            top_row,
+            text="📕 Export PDF",
+            width=110,
+            height=28,
+            font=ctk.CTkFont(family="Segoe UI", size=11),
+            fg_color=self.theme.accent_amber,
+            hover_color=self.theme.bg_accent,
+            text_color="#ffffff",
+            command=self._export_pdf_textbook
+        )
+        btn_export_pdf.pack(side="right", padx=(6, 0))
+
         btn_copy = ctk.CTkButton(
             top_row,
             text="📋 Copy Chapter",
@@ -349,3 +362,21 @@ class AcademyGuideView(ctk.CTkFrame):
                 line_num = content_lower[:idx_pos].count("\n") + 1
                 self.txt_content.see(f"{line_num}.0")
                 return
+
+    def _export_pdf_textbook(self):
+        """Compile and open the full 16-chapter textbook as a publication PDF."""
+        try:
+            from reporting.pdf_academic_textbook import AcademicTextbookPdfGenerator
+            reports_dir = Path(__file__).resolve().parent.parent.parent / "reports"
+            reports_dir.mkdir(parents=True, exist_ok=True)
+            target_pdf = str(reports_dir / "GANN_ACADEMY_MASTER_TEXTBOOK.pdf")
+
+            AcademicTextbookPdfGenerator.generate_pdf(target_pdf)
+            if os.path.exists(target_pdf):
+                try:
+                    os.startfile(target_pdf)
+                except Exception:
+                    pass
+        except Exception as e:
+            print(f"Error compiling textbook PDF: {e}")
+

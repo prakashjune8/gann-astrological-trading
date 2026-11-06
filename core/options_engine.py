@@ -162,6 +162,10 @@ class BSMOptionEngine:
     DEFAULT_R: float = 0.065    # 6.5% RBI Repo Rate
     DEFAULT_Q: float = 0.0125   # 1.25% Nifty 50 Continuous Dividend Yield
 
+    def __init__(self, r: float = DEFAULT_R, q: float = DEFAULT_Q):
+        self.r = r
+        self.q = q
+
     @classmethod
     def calculate_d1_d2(
         cls,

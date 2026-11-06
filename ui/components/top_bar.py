@@ -88,12 +88,13 @@ class TopBarComponent(ctk.CTkFrame):
             "CONTROL_DECK": "Master Control Deck",
             "CELESTIAL_WHEEL": "360° Celestial Wheel",
             "DUAL_SPLIT": "Dual Split View",
-            "BACKTEST": "Quant Backtest & Visualizer"
+            "BACKTEST": "Quant Backtest & Visualizer",
+            "OPTIONS_CHAIN": "Live Options Chain & Greeks"
         }
         self.view_var = ctk.StringVar(value=view_map_rev.get(initial_view, "Dual Split View"))
         self.view_menu = ctk.CTkOptionMenu(
             right_frame,
-            values=["Master Control Deck", "360° Celestial Wheel", "Dual Split View", "Quant Backtest & Visualizer"],
+            values=["Master Control Deck", "360° Celestial Wheel", "Dual Split View", "Quant Backtest & Visualizer", "Live Options Chain & Greeks"],
             variable=self.view_var,
             command=self._handle_view_select,
             font=ctk.CTkFont(size=11),
@@ -101,7 +102,7 @@ class TopBarComponent(ctk.CTkFrame):
             button_color=self.theme.accent_blue,
             text_color=self.theme.text_primary,
             height=28,
-            width=185
+            width=195
         )
         self.view_menu.pack(side="left", padx=8)
 
@@ -138,7 +139,8 @@ class TopBarComponent(ctk.CTkFrame):
             "Master Control Deck": "CONTROL_DECK",
             "360° Celestial Wheel": "CELESTIAL_WHEEL",
             "Dual Split View": "DUAL_SPLIT",
-            "Quant Backtest & Visualizer": "BACKTEST"
+            "Quant Backtest & Visualizer": "BACKTEST",
+            "Live Options Chain & Greeks": "OPTIONS_CHAIN"
         }
         self.on_view_change(v_map.get(choice, "DUAL_SPLIT"))
 

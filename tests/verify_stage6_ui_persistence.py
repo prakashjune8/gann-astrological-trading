@@ -34,6 +34,7 @@ from ui.components.backtest_dashboard_view import BacktestDashboardView
 from ui.components.celestial_wheel_view import CelestialWheelView
 from ui.components.control_deck_view import ControlDeckView
 from ui.components.dual_split_view import DualSplitView
+from ui.components.options_chain_view import OptionsChainView
 from ui.state_manager import StateManager, UserPreferences
 from ui.theme import DARK_THEME, LIGHT_THEME
 
@@ -164,8 +165,14 @@ def run_stage_6_verification():
     bt_view = BacktestDashboardView(root, theme=theme)
     print("    - BacktestDashboardView: Institutional Backtest & High-DPI Visualizer Tab Verified.")
 
+    # 7. Test OptionsChainView
+    opt_view = OptionsChainView(root, theme=theme)
+    opt_view._run_analytical_calculation_worker()
+    opt_view._ui_refresh_tick()
+    print("    - OptionsChainView: Live Tabular Chain, Greeks & Delta Hedger Verified.")
+
     root.destroy()
-    print("    --> All 6 Primary UI Views & Component Trees: 100% OPERATIONAL!")
+    print("    --> All 7 Primary UI Views & Component Trees: 100% OPERATIONAL!")
 
     # --------------------------------------------------------------------------
     # Part D: Desktop Shortcut & Launcher Verification

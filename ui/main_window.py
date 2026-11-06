@@ -27,6 +27,7 @@ from ui.components.celestial_wheel_view import CelestialWheelView
 from ui.components.control_deck_view import ControlDeckView
 from ui.components.custom_script_dialog import CustomScriptDialog
 from ui.components.dual_split_view import DualSplitView
+from ui.components.options_chain_view import OptionsChainView
 from ui.components.top_bar import TopBarComponent
 from ui.state_manager import StateManager
 from ui.theme import DARK_THEME, LIGHT_THEME, ThemeTokens
@@ -125,6 +126,7 @@ class MainWindow(ctk.CTk):
         self.view_split = DualSplitView(self.center_workspace, theme=self.theme)
         self.view_academy = AcademyGuideView(self.center_workspace, theme=self.theme)
         self.view_backtest = BacktestDashboardView(self.center_workspace, theme=self.theme)
+        self.view_options = OptionsChainView(self.center_workspace, theme=self.theme)
 
         # 5. Bottom Alert Ledger & Status Banner
         self.alert_ledger = AlertLedgerView(self, theme=self.theme)
@@ -317,7 +319,7 @@ class MainWindow(ctk.CTk):
         ).pack(side="left", padx=2)
 
     def _activate_view(self, view_key: str):
-        for v in [self.view_deck, self.view_wheel, self.view_split, self.view_academy, self.view_backtest]:
+        for v in [self.view_deck, self.view_wheel, self.view_split, self.view_academy, self.view_backtest, self.view_options]:
             v.pack_forget()
 
         if view_key == "CONTROL_DECK":
@@ -328,6 +330,8 @@ class MainWindow(ctk.CTk):
             self.view_academy.pack(fill="both", expand=True)
         elif view_key == "BACKTEST":
             self.view_backtest.pack(fill="both", expand=True)
+        elif view_key == "OPTIONS_CHAIN":
+            self.view_options.pack(fill="both", expand=True)
         else:  # DUAL_SPLIT
             self.view_split.pack(fill="both", expand=True)
 
@@ -373,6 +377,8 @@ class MainWindow(ctk.CTk):
             self.view_split.apply_theme(self.theme)
         if hasattr(self, "view_backtest"):
             self.view_backtest.apply_theme(self.theme)
+        if hasattr(self, "view_options"):
+            self.view_options.apply_theme(self.theme)
         if hasattr(self, "alert_ledger"):
             self.alert_ledger.apply_theme(self.theme)
 
@@ -716,6 +722,8 @@ class MainWindow(ctk.CTk):
         self.view_deck.update_telemetry(snapshot)
         self.view_wheel.update_wheel_data(wheel_planets, wheel_aspects, price_angle, active_layer=layer_choice)
         self.view_split.update_all(snapshot, wheel_planets, wheel_aspects, price_angle, active_layer=layer_choice)
+        if hasattr(self, "view_options"):
+            self.view_options.on_live_tick_update(self.current_cmp)
 
     def _export_pdf_summary(self):
         now_ist = datetime.now(IST)

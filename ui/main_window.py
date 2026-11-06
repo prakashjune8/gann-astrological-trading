@@ -22,7 +22,7 @@ from core.price_harmonics import PriceHarmonicsEngine
 from reporting.pdf_daily_summary import DailyPdfReportGenerator
 from ui.components.academy_guide_view import AcademyGuideView
 from ui.components.alert_ledger_view import AlertLedgerView
-from ui.components.backtest_view import BacktestView
+from ui.components.backtest_dashboard_view import BacktestDashboardView
 from ui.components.celestial_wheel_view import CelestialWheelView
 from ui.components.control_deck_view import ControlDeckView
 from ui.components.custom_script_dialog import CustomScriptDialog
@@ -124,7 +124,7 @@ class MainWindow(ctk.CTk):
         self.view_wheel = CelestialWheelView(self.center_workspace, theme=self.theme)
         self.view_split = DualSplitView(self.center_workspace, theme=self.theme)
         self.view_academy = AcademyGuideView(self.center_workspace, theme=self.theme)
-        self.view_backtest = BacktestView(self.center_workspace, theme=self.theme)
+        self.view_backtest = BacktestDashboardView(self.center_workspace, theme=self.theme)
 
         # 5. Bottom Alert Ledger & Status Banner
         self.alert_ledger = AlertLedgerView(self, theme=self.theme)

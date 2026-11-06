@@ -30,7 +30,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from ui.components.academy_guide_view import AcademyGuideView
 from ui.components.alert_ledger_view import AlertLedgerView
-from ui.components.backtest_view import BacktestView
+from ui.components.backtest_dashboard_view import BacktestDashboardView
 from ui.components.celestial_wheel_view import CelestialWheelView
 from ui.components.control_deck_view import ControlDeckView
 from ui.components.dual_split_view import DualSplitView
@@ -160,9 +160,9 @@ def run_stage_6_verification():
     academy = AcademyGuideView(root, theme=theme)
     print("    - AcademyGuideView: Educational Manual Document Stream Verified.")
 
-    # 6. Test BacktestView
-    bt_view = BacktestView(root, theme=theme)
-    print("    - BacktestView: Institutional Backtest & Visualizer Tab Verified.")
+    # 6. Test BacktestDashboardView
+    bt_view = BacktestDashboardView(root, theme=theme)
+    print("    - BacktestDashboardView: Institutional Backtest & High-DPI Visualizer Tab Verified.")
 
     root.destroy()
     print("    --> All 6 Primary UI Views & Component Trees: 100% OPERATIONAL!")

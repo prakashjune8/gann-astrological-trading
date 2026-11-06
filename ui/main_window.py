@@ -10,6 +10,7 @@ import customtkinter as ctk
 from audio.alert_audio import AlertAudioEngine
 from core.aspect_engine import AspectEngine
 from core.backtest_engine import GannBacktestEngine
+from core.confluence_engine import ConfluenceEngine
 from core.continuous_tracker import ContinuousCelestialTracker, ContinuousCelestialState
 from core.geo_temporal import (
     DEFAULT_STATION, INDIAN_STATIONS, IST, SESSION_FULL_DAY, SESSION_MCX_SUMMER,
@@ -183,12 +184,12 @@ class MainWindow(ctk.CTk):
         self.layers_var = ctk.StringVar(value="All Overlays Active")
         self.layer_menu = ctk.CTkOptionMenu(
             self.strip,
-            values=["All Overlays Active", "Only Cardinal (90°)", "Only Fixed (45°)", "Planetary Lines", "50% Eq Only"],
+            values=["All Overlays Active", "Only Cardinal (90°)", "Only Fixed (45°)", "Planetary Lines", "50% Eq Only", "8-Octaves (Cymatic)"],
             variable=self.layers_var,
             command=self._handle_layer_change,
             font=ctk.CTkFont(size=11),
             fg_color=self.theme.bg_accent,
-            width=140,
+            width=150,
             height=28
         )
         self.layer_menu.pack(side="left", padx=4)
@@ -610,7 +611,7 @@ class MainWindow(ctk.CTk):
             except Exception:
                 pass
 
-        # 5. Harmonic Price Levels
+        # 5. Harmonic Price Levels & 8-Octave Cymatic Grid
         price_lons = {k: v["lon"] for k, v in planets_telemetry.items()}
         raw_price_levels: list[dict] = []
         layer_choice = self.layers_var.get()
@@ -631,6 +632,11 @@ class MainWindow(ctk.CTk):
             eq = PriceHarmonicsEngine.calculate_daily_equilibrium(snap.high_price, snap.low_price, self.current_cmp)
             raw_price_levels.insert(0, {"label": eq.label, "type": eq.level_type, "price": eq.price, "distance": eq.distance_from_cmp})
 
+        if layer_choice in ["All Overlays Active", "8-Octaves (Cymatic)"]:
+            oct_levels = ConfluenceEngine.calculate_8_octaves(snap.low_price, snap.high_price, self.current_cmp)
+            for ol in oct_levels:
+                raw_price_levels.append({"label": f"Octave {ol.ratio_label} ({ol.musical_note})", "type": "Cymatic Octave", "price": ol.price, "distance": ol.distance})
+
         raw_price_levels.sort(key=lambda x: abs(x["distance"]))
         self.latest_price_levels = raw_price_levels
 
@@ -642,10 +648,9 @@ class MainWindow(ctk.CTk):
         ]
         self.latest_aspects = wheel_aspects
 
-        # 7. Price Needle Degree on Wheel
-        price_angle = PriceHarmonicsEngine.price_to_wheel_angle(self.current_cmp)
+        # 7. Level 3 Advanced Telemetry: Declination Parallels, 1x1 Velocity, and Triple Confluence
+        declination_parallels = ConfluenceEngine.find_declination_parallels(price_lons, max_orb_deg=0.35)
 
-        # 8. Assemble Snapshot Dictionary for Active Eval Time
         start_dt = datetime.combine(target_date, session.start_time, tzinfo=IST)
         end_dt = datetime.combine(target_date, session.end_time, tzinfo=IST)
         total_sec = max(1.0, (end_dt - start_dt).total_seconds())
@@ -653,6 +658,28 @@ class MainWindow(ctk.CTk):
         prog_pct = (elapsed_sec / total_sec) * 100.0
         prog_deg = (prog_pct / 100.0) * 360.0
 
+        elapsed_hours = max(0.01, elapsed_sec / 3600.0)
+        vel_1x1 = ConfluenceEngine.evaluate_1x1_velocity(self.current_cmp, snap.low_price, elapsed_hours)
+
+        key_prices = [p["price"] for p in raw_price_levels]
+        is_all, g_p, g_t, g_a, setup = ConfluenceEngine.evaluate_triple_confluence(
+            cmp=self.current_cmp,
+            eval_time_ist=eval_time_ist,
+            solar_noon_dt=solar_noon,
+            key_price_levels=key_prices,
+            active_aspects=wheel_aspects,
+            declination_parallels=declination_parallels
+        )
+
+        if is_all and setup:
+            self.audio_engine.trigger_alert("CHIME", "Triple Confluence Triggered")
+            self.alert_ledger.set_banner_alert(f"TRIPLE CONFLUENCE SNIPER: {setup.direction} @ {setup.entry_price:,.1f}", is_critical=True)
+            self.alert_ledger.add_event("SNIPER", f"🎯 {setup.direction} @ {setup.entry_price:,.1f} | Hard Stop: {setup.hard_stop_loss:,.1f} (-{setup.risk_pts:.0f} pts) | T1: {setup.target_1:,.1f} | R:R 1:{setup.risk_reward_ratio:.1f}", eval_time_ist.strftime("%H:%M:%S IST"))
+
+        # 8. Price Needle Degree on Wheel
+        price_angle = PriceHarmonicsEngine.price_to_wheel_angle(self.current_cmp)
+
+        # 9. Assemble Snapshot Dictionary for Active Eval Time
         st_short_name = station.name.split("(")[0].strip()
         snapshot = {
             "cmp": self.current_cmp,
@@ -664,10 +691,22 @@ class MainWindow(ctk.CTk):
             "noon_time": f"{solar_noon.strftime('%H:%M:%S IST')} ({st_short_name})",
             "equilibrium_price": (snap.high_price + snap.low_price) / 2.0,
             "planets": planets_telemetry,
-            "price_levels": self.latest_price_levels
+            "price_levels": self.latest_price_levels,
+            "confluence": {
+                "is_all_confluent": is_all,
+                "gate_price": g_p.is_active,
+                "gate_time": g_t.is_active,
+                "gate_astro": g_a.is_active,
+                "price_desc": g_p.description,
+                "time_desc": g_t.description,
+                "astro_desc": g_a.description,
+                "trade_setup": setup
+            },
+            "velocity_1x1": vel_1x1,
+            "declination_parallels": declination_parallels
         }
 
-        # 9. Update Active Views with Layer Filter
+        # 10. Update Active Views with Layer Filter
         self.view_deck.update_telemetry(snapshot)
         self.view_wheel.update_wheel_data(wheel_planets, wheel_aspects, price_angle, active_layer=layer_choice)
         self.view_split.update_all(snapshot, wheel_planets, wheel_aspects, price_angle, active_layer=layer_choice)

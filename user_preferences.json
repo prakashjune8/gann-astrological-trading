@@ -1,10 +1,10 @@
 {
   "theme": "DARK",
   "coordinate_frame": "GEOCENTRIC",
-  "active_view": "DUAL_SPLIT",
+  "active_view": "ACADEMY",
   "operating_mode": "LIVE",
-  "active_script": "NIFTY_50",
-  "time_step": "1 Min",
+  "active_script": "SENSEX",
+  "time_step": "5 Mins",
   "custom_time": "13:56",
   "station_key": "MUMBAI_NSE",
   "show_cardinal_cross": true,
@@ -15,5 +15,6 @@
   "alert_sound": true,
   "alert_voice": true,
   "alert_mode": "BOTH",
+  "topocentric_lunar": false,
   "custom_scripts": []
 }

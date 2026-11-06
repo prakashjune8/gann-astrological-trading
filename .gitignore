@@ -4,3 +4,6 @@ build/
 __pycache__/
 *.pyc
 .pytest_cache/
+.cache/
+data/parquet/
+reports/test_*.pdf

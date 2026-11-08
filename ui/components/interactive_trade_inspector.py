@@ -62,15 +62,55 @@ class InteractiveTradeInspector(ctk.CTkFrame):
         self.is_playing: bool = False
         self.play_job: Optional[str] = None
 
-        # Scaffolding: 3-Layer Grid Architecture
+        # Continuous Streaming Playback Engine State
+        self.is_streaming: bool = False
+        self.stream_job: Optional[str] = None
+        self.stream_day_groups: List[Tuple[Any, pd.DataFrame]] = []
+        self.stream_day_idx: int = 0
+        self.stream_current_day_df: Optional[pd.DataFrame] = None
+        self.stream_current_hierarchy: Dict[str, Any] = {}
+        self.stream_bar_idx: int = 0
+
+        # Scaffolding: 4-Tier Grid Architecture
         self.grid_rowconfigure(0, weight=0)  # Layer 1: Telemetry Header
-        self.grid_rowconfigure(1, weight=1)  # Layer 2: Candlestick Canvas (expands)
-        self.grid_rowconfigure(2, weight=0)  # Layer 3: Scrubber & Navigation
+        self.grid_rowconfigure(1, weight=0)  # Layer 1B: Streaming Telemetry Strip
+        self.grid_rowconfigure(2, weight=1)  # Layer 2: Candlestick Canvas (expands)
+        self.grid_rowconfigure(3, weight=0)  # Layer 3: Scrubber & Navigation
         self.grid_columnconfigure(0, weight=1)
 
         self._build_layer1_telemetry()
+        self._build_layer1b_streaming_banner()
         self._build_layer2_canvas()
         self._build_layer3_scrubber()
+
+    def _build_layer1b_streaming_banner(self):
+        """Builds high-visibility streaming telemetry strip displaying chronological hierarchy."""
+        self.stream_banner = ctk.CTkFrame(
+            self,
+            fg_color=self.theme.bg_secondary,
+            corner_radius=4,
+            height=28
+        )
+        self.stream_banner.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 2))
+        self.stream_banner.grid_propagate(False)
+
+        # Dynamic Streaming Hierarchy Label
+        self.lbl_stream_hierarchy = ctk.CTkLabel(
+            self.stream_banner,
+            text="[CONTINUOUS STREAM ENGINE] Ready: Month -> Week -> Day -> 1-Min Stream",
+            font=ctk.CTkFont(family="Consolas", size=10, weight="bold"),
+            text_color="#00f0ff"
+        )
+        self.lbl_stream_hierarchy.pack(side="left", padx=12, pady=4)
+
+        # Day Counter Badge
+        self.lbl_stream_day_badge = ctk.CTkLabel(
+            self.stream_banner,
+            text="DAY 0/0",
+            font=ctk.CTkFont(family="Consolas", size=9, weight="bold"),
+            text_color=self.theme.accent_amber
+        )
+        self.lbl_stream_day_badge.pack(side="right", padx=12, pady=4)
 
     # ==========================================================================
     # LAYER 1: DATASET TELEMETRY & SAMPLE HEALTH LEDGER
@@ -423,7 +463,7 @@ class InteractiveTradeInspector(ctk.CTkFrame):
             fg_color=self.theme.bg_primary,
             corner_radius=0
         )
-        self.layer2_frame.grid(row=1, column=0, sticky="nsew", padx=10, pady=2)
+        self.layer2_frame.grid(row=2, column=0, sticky="nsew", padx=10, pady=2)
 
         # Matplotlib Figure with deep obsidian background
         # DPI=100 with constrained_layout for zero clipping
@@ -848,7 +888,7 @@ class InteractiveTradeInspector(ctk.CTkFrame):
             corner_radius=6,
             height=72
         )
-        self.layer3_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=(4, 8))
+        self.layer3_frame.grid(row=3, column=0, sticky="ew", padx=10, pady=(4, 8))
         self.layer3_frame.grid_propagate(False)
 
         # Upper Sub-Frame: Navigation Controls & Slider
@@ -887,7 +927,7 @@ class InteractiveTradeInspector(ctk.CTkFrame):
             width=95, height=28,
             command=self._on_next_trade
         )
-        self.btn_next_trade.pack(side="left", padx=(4, 12))
+        self.btn_next_trade.pack(side="left", padx=(4, 8))
 
         # Play / Pause Toggle
         self.btn_play_pause = ctk.CTkButton(
@@ -895,10 +935,22 @@ class InteractiveTradeInspector(ctk.CTkFrame):
             text="▶ Play",
             font=ctk.CTkFont(size=11, weight="bold"),
             fg_color=self.theme.accent_blue,
-            width=70, height=28,
+            width=68, height=28,
             command=self._on_toggle_play
         )
-        self.btn_play_pause.pack(side="left", padx=4)
+        self.btn_play_pause.pack(side="left", padx=(0, 4))
+
+        # Continuous Stream 3-Year Backtest Button
+        self.btn_stream = ctk.CTkButton(
+            self.nav_strip,
+            text="▶ Stream 3-Year Backtest",
+            font=ctk.CTkFont(size=11, weight="bold"),
+            fg_color="#7c3aed",
+            hover_color="#6d28d9",
+            width=182, height=28,
+            command=self._on_toggle_continuous_stream
+        )
+        self.btn_stream.pack(side="left", padx=(0, 10))
 
         # Timeline Scrubber Slider
         self.scrubber_slider = ctk.CTkSlider(
@@ -980,6 +1032,14 @@ class InteractiveTradeInspector(ctk.CTkFrame):
                 self.active_trades = [trades]
 
         self.current_trade_idx = 0
+
+        # Prepare continuous streaming day partitions
+        self._prepare_streaming_day_groups()
+        self.stream_day_idx = 0
+        self.stream_current_day_df = None
+        self.stream_bar_idx = 0
+        if self.stream_day_groups:
+            self.lbl_stream_day_badge.configure(text=f"DAY 1/{len(self.stream_day_groups)}")
 
         # Apply active timeframe
         self.set_timeframe(self.current_timeframe, auto_render=False)
@@ -1100,10 +1160,18 @@ class InteractiveTradeInspector(ctk.CTkFrame):
 
     def _on_slider_scrub(self, val: float):
         """Scrubs window bar-by-bar, dynamically rendering the chart up to current minute."""
+        offset = int(val)
+
+        # In continuous streaming mode, update current day's bar position
+        if self.is_streaming and self.stream_current_day_df is not None:
+            self.stream_bar_idx = offset
+            self._render_stream_slice(self.stream_bar_idx)
+            self._update_streaming_banner(self.stream_bar_idx)
+            return
+
         if self.full_df is None or self.full_df.empty:
             return
 
-        offset = int(val)
         current_end = min(len(self.full_df), self.current_window_start + max(10, offset))
 
         trade = None
@@ -1113,14 +1181,18 @@ class InteractiveTradeInspector(ctk.CTkFrame):
         self.render_window(self.current_window_start, current_end, active_trade=trade)
 
     def _on_toggle_play(self):
-        """Toggles automated step-by-step playback simulation."""
+        """Toggles automated step-by-step trade playback simulation."""
+        if self.is_streaming:
+            self._stop_continuous_stream()
+            return
+
         if self.is_playing:
             self._stop_playback()
         else:
             self._start_playback()
 
     def _start_playback(self):
-        """Starts simulation playback loop."""
+        """Starts single-trade simulation playback loop."""
         if self.full_df is None or self.full_df.empty:
             return
 
@@ -1138,7 +1210,7 @@ class InteractiveTradeInspector(ctk.CTkFrame):
         self.play_job = self.after(delay_ms, self._step_simulation)
 
     def _stop_playback(self):
-        """Stops simulation playback loop cleanly."""
+        """Stops single-trade simulation playback loop cleanly."""
         self.is_playing = False
         if self.play_job is not None:
             try:
@@ -1149,7 +1221,7 @@ class InteractiveTradeInspector(ctk.CTkFrame):
         self.btn_play_pause.configure(text="▶ Play", fg_color=self.theme.accent_blue)
 
     def _step_simulation(self):
-        """Executes one simulation step via Tkinter .after() event loop."""
+        """Executes one trade playback step via Tkinter .after() event loop."""
         if not self.is_playing:
             return
 
@@ -1166,4 +1238,240 @@ class InteractiveTradeInspector(ctk.CTkFrame):
             self.play_job = self.after(delay_ms, self._step_simulation)
         else:
             self._stop_playback()
+
+    # ==========================================================================
+    # CONTINUOUS STREAMING PLAYBACK ENGINE (MULTI-YEAR DAY-BY-DAY LOOP)
+    # ==========================================================================
+    def _prepare_streaming_day_groups(self):
+        """Partitions raw 1-minute dataset into sequential trading days for continuous streaming."""
+        if self.raw_1m_df is None or self.raw_1m_df.empty:
+            self.stream_day_groups = []
+            return
+
+        ts_col = self.raw_1m_df["timestamp"]
+        days = []
+        for d, grp in self.raw_1m_df.groupby(ts_col.dt.date, sort=True):
+            if not grp.empty and len(grp) >= 10:
+                days.append((d, grp.copy().reset_index(drop=True)))
+        self.stream_day_groups = days
+
+    def _get_next_trading_day_chunk(self) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+        """Fetches the next chronological trading day chunk in an infinite continuous loop.
+        
+        Returns:
+            (day_df, hierarchy_dict)
+            where hierarchy_dict tracks:
+            {"year": int, "month_name": str, "week_of_month": int, "day_name": str,
+             "date_str": str, "day_index": int, "total_days": int, "total_bars": int}
+        """
+        if not self.stream_day_groups:
+            self._prepare_streaming_day_groups()
+
+        if not self.stream_day_groups:
+            return pd.DataFrame(), {}
+
+        # Infinite loop wrap-around
+        if self.stream_day_idx >= len(self.stream_day_groups):
+            self.stream_day_idx = 0
+
+        target_date, day_df = self.stream_day_groups[self.stream_day_idx]
+        current_idx = self.stream_day_idx
+        self.stream_day_idx += 1  # Advance for next call
+
+        # Calculate exact hierarchy: Month -> Week -> Day
+        w_of_m = (target_date.day - 1) // 7 + 1
+        hierarchy = {
+            "year": target_date.year,
+            "month_name": target_date.strftime("%b"),
+            "week_of_month": w_of_m,
+            "day_name": target_date.strftime("%A"),
+            "date_str": target_date.strftime("%Y-%m-%d"),
+            "date": target_date,
+            "day_index": current_idx + 1,
+            "total_days": len(self.stream_day_groups),
+            "total_bars": len(day_df)
+        }
+        return day_df, hierarchy
+
+    def _on_toggle_continuous_stream(self):
+        """Toggles continuous multi-year streaming playback engine."""
+        if self.is_streaming:
+            self._stop_continuous_stream()
+        else:
+            self._start_continuous_stream()
+
+    def _start_continuous_stream(self):
+        """Launches infinite continuous day-by-day streaming loop."""
+        if self.raw_1m_df is None or self.raw_1m_df.empty:
+            return
+
+        # Stop any single-trade playback
+        if self.is_playing:
+            self._stop_playback()
+
+        self.is_streaming = True
+        self.btn_stream.configure(text="⏸ Pause Stream", fg_color=self.theme.accent_amber)
+
+        # Ensure active timeframe is 1-Min Intraday
+        self.current_timeframe = "1-Min Intraday"
+        self.timeframe_var.set("1-Min Intraday")
+
+        # If starting fresh or previous day ended, load next day
+        if self.stream_current_day_df is None or self.stream_bar_idx >= len(self.stream_current_day_df):
+            self._load_next_stream_day()
+
+        self._step_continuous_stream()
+
+    def _stop_continuous_stream(self):
+        """Pauses the continuous stream cleanly at the exact current minute bar."""
+        self.is_streaming = False
+        if self.stream_job is not None:
+            try:
+                self.after_cancel(self.stream_job)
+            except Exception:
+                pass
+            self.stream_job = None
+
+        self.btn_stream.configure(text="▶ Stream 3-Year Backtest", fg_color="#7c3aed")
+        self.lbl_health_pill.configure(
+            text="● STREAM PAUSED",
+            text_color=self.theme.text_muted
+        )
+
+    def _load_next_stream_day(self):
+        """Flushes Matplotlib canvas memory, loads next day's 1-minute chunk, and resets bar counter."""
+        # 1. CRITICAL MEMORY FLUSH: Clear axes to prevent memory leaks across 1000s of days
+        self.ax.cla()
+        self._apply_dark_canvas_style()
+
+        # 2. Fetch next trading day from hierarchical iterator
+        day_df, hierarchy = self._get_next_trading_day_chunk()
+        if day_df.empty:
+            self._stop_continuous_stream()
+            return
+
+        self.stream_current_day_df = day_df
+        self.stream_current_hierarchy = hierarchy
+        self.stream_bar_idx = min(15, len(day_df))  # Initial seed bars for clean visual
+
+        # Set active dataframe to this day
+        self.intraday_slice_df = day_df
+        self.active_df = day_df
+        self.full_df = day_df
+        self.current_window_start = 0
+        self.current_window_end = len(day_df)
+
+        # Update Scrubber slider bounds to 0..len(day_df)
+        n_bars = len(day_df)
+        self.scrubber_slider.configure(
+            from_=min(15, n_bars),
+            to=n_bars,
+            number_of_steps=max(1, n_bars - min(15, n_bars))
+        )
+        self.scrubber_slider.set(self.stream_bar_idx)
+
+        # Update Streaming Telemetry & Badge
+        self._update_streaming_banner(self.stream_bar_idx)
+
+    def _step_continuous_stream(self):
+        """Timer callback advancing the stream by 1-minute increments."""
+        if not self.is_streaming:
+            return
+
+        if self.stream_current_day_df is None or self.stream_current_day_df.empty:
+            self._load_next_stream_day()
+            if self.stream_current_day_df is None:
+                return
+
+        total_day_bars = len(self.stream_current_day_df)
+
+        # Speed multipliers
+        speed = self.speed_var.get()
+        if speed == "1x":
+            step = 1
+            delay_ms = 220
+        elif speed == "5x":
+            step = 4
+            delay_ms = 40
+        else:  # Max
+            step = 15
+            delay_ms = 5
+
+        self.stream_bar_idx += step
+
+        # Check if trading day has completed (15:30 IST)
+        if self.stream_bar_idx >= total_day_bars:
+            # Render final state of day
+            self._render_stream_slice(total_day_bars)
+            self._update_streaming_banner(total_day_bars)
+
+            # FLUSH MEMORY & LOAD NEXT TRADING DAY CHUNK
+            self._load_next_stream_day()
+
+            # Brief inter-day delay
+            inter_day_delay = 120 if speed == "1x" else (35 if speed == "5x" else 5)
+            self.stream_job = self.after(inter_day_delay, self._step_continuous_stream)
+            return
+
+        # Render current minute slice
+        self._render_stream_slice(self.stream_bar_idx)
+        self._update_streaming_banner(self.stream_bar_idx)
+        self.scrubber_slider.set(self.stream_bar_idx)
+
+        # Schedule next tick
+        self.stream_job = self.after(delay_ms, self._step_continuous_stream)
+
+    def _render_stream_slice(self, n_bars: int):
+        """Draws current day's candles from bar 0 up to n_bars."""
+        if self.stream_current_day_df is None or self.stream_current_day_df.empty:
+            return
+
+        n = max(5, min(n_bars, len(self.stream_current_day_df)))
+        slice_df = self.stream_current_day_df.iloc[:n].copy().reset_index(drop=True)
+        self.current_slice = slice_df
+
+        # Match active trade if one occurred today
+        trade = None
+        if self.active_trades and 0 <= self.current_trade_idx < len(self.active_trades):
+            candidate_trd = self.active_trades[self.current_trade_idx]
+            ft = getattr(candidate_trd, "fill_time", None) or (candidate_trd.get("fill_time") if isinstance(candidate_trd, dict) else None)
+            if ft:
+                try:
+                    c_date = pd.to_datetime(ft).date()
+                    if c_date == self.stream_current_hierarchy.get("date"):
+                        trade = candidate_trd
+                except Exception:
+                    pass
+
+        self.draw_candlesticks(slice_df, active_trade=trade)
+
+    def _update_streaming_banner(self, current_bar: int):
+        """Updates the streaming telemetry label to reflect the exact hierarchical state."""
+        h = getattr(self, "stream_current_hierarchy", {})
+        if not h:
+            return
+
+        curr_time_str = ""
+        if self.stream_current_day_df is not None and not self.stream_current_day_df.empty:
+            idx = min(max(0, current_bar - 1), len(self.stream_current_day_df) - 1)
+            ts = self.stream_current_day_df["timestamp"].iloc[idx]
+            curr_time_str = f" | {ts.strftime('%H:%M')} IST"
+
+        # Explicit format requested: [STREAMING] Year: 2020 | Month: Jan | Week: 1 | Day: Monday (2020-01-05)
+        text = (
+            f"[STREAMING] Year: {h['year']} | Month: {h['month_name']} | "
+            f"Week: {h['week_of_month']} | Day: {h['day_name']} ({h['date_str']}){curr_time_str} "
+            f"(Bar {current_bar}/{h.get('total_bars', 375)})"
+        )
+        self.lbl_stream_hierarchy.configure(text=text)
+        self.lbl_stream_day_badge.configure(text=f"DAY {h['day_index']}/{h['total_days']}")
+
+        # Synchronize Layer 1 Telemetry
+        self.lbl_telemetry_span.configure(
+            text=f"[STREAMING 3-YEAR BACKTEST] Day {h['day_index']} of {h['total_days']} | {h['date_str']} | {current_bar} bars"
+        )
+        self.lbl_health_pill.configure(
+            text="● STREAMING ACTIVE",
+            text_color=self.theme.accent_amber
+        )
 

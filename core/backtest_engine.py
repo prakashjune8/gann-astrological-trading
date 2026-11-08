@@ -747,6 +747,7 @@ class HistoricalBacktestRunner:
     ):
         self.loader = data_loader or ParquetDataLoader()
         self.backtester = backtester or EventDrivenBacktester()
+        self.last_loaded_df: Optional[pd.DataFrame] = None
 
     def run_partition(
         self,
@@ -788,6 +789,7 @@ class HistoricalBacktestRunner:
                     custom_range=(m_start, min(d_end, date(curr_year, curr_month, 28)))
                 )
                 if not df_month.empty:
+                    self.last_loaded_df = df_month.copy()
                     # Group by calendar day for realistic daily anchoring
                     for _, df_day in df_month.groupby(df_month.index.date):
                         signals = ConfluenceSignalFeeder.generate_day_signals(df_day, symbol=symbol)
@@ -795,7 +797,6 @@ class HistoricalBacktestRunner:
                             trades = self.backtester.simulate(df_day, signals)
                             ledger.extend(trades)
 
-                    # Explicitly release monthly DataFrame to conserve RAM
                     del df_month
 
             # Increment month

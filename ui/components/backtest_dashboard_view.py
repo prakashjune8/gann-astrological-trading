@@ -231,11 +231,26 @@ class BacktestDashboardView(ctk.CTkFrame):
         if hasattr(self, "inspector_view"):
             trades = (self.oos_ledger.trades if self.oos_ledger else []) or (self.is_ledger.trades if self.is_ledger else [])
             raw_df = getattr(self.runner, "last_loaded_df", None)
+            sym = self.symbol_var.get()
             if raw_df is None or raw_df.empty:
                 try:
-                    raw_df = self.loader.load_merged_range(self.symbol_var.get(), date(2023, 1, 1), date(2023, 12, 31))
+                    from core.data_vault_manager import LocalDataVaultManager
+                    vault = LocalDataVaultManager()
+                    raw_df = vault.load_vault_range(sym)
                 except Exception:
                     raw_df = None
+            if raw_df is None or raw_df.empty:
+                try:
+                    raw_df = self.loader.load_dataset(sym, partition="FULL")
+                except Exception:
+                    raw_df = None
+            if raw_df is None or raw_df.empty:
+                try:
+                    self.loader.generate_synthetic_benchmark_parquet(sym, year=2023, month=12)
+                    raw_df = self.loader.load_dataset(sym, partition="FULL")
+                except Exception:
+                    raw_df = None
+
             if raw_df is not None and not raw_df.empty:
                 self.inspector_view.load_trades_and_data(raw_df, trades)
 
@@ -408,11 +423,26 @@ class BacktestDashboardView(ctk.CTkFrame):
         if hasattr(self, "inspector_view"):
             trades = (self.oos_ledger.trades if self.oos_ledger else []) or (self.is_ledger.trades if self.is_ledger else [])
             raw_df = getattr(self.runner, "last_loaded_df", None)
+            sym = self.symbol_var.get()
             if raw_df is None or raw_df.empty:
                 try:
-                    raw_df = self.loader.load_merged_range(self.symbol_var.get(), date(2023, 1, 1), date(2023, 12, 31))
+                    from core.data_vault_manager import LocalDataVaultManager
+                    vault = LocalDataVaultManager()
+                    raw_df = vault.load_vault_range(sym)
                 except Exception:
                     raw_df = None
+            if raw_df is None or raw_df.empty:
+                try:
+                    raw_df = self.loader.load_dataset(sym, partition="FULL")
+                except Exception:
+                    raw_df = None
+            if raw_df is None or raw_df.empty:
+                try:
+                    self.loader.generate_synthetic_benchmark_parquet(sym, year=2023, month=12)
+                    raw_df = self.loader.load_dataset(sym, partition="FULL")
+                except Exception:
+                    raw_df = None
+
             if raw_df is not None and not raw_df.empty:
                 self.inspector_view.load_trades_and_data(raw_df, trades)
 

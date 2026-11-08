@@ -175,7 +175,10 @@ class InteractiveTradeInspector(ctk.CTkFrame):
         )
         self.ax.set_xticks([])
         self.ax.set_yticks([])
-        self.canvas.draw_idle()
+        try:
+            self.canvas.draw()
+        except Exception:
+            self.canvas.draw_idle()
 
     def render_window(self, start_idx: int, end_idx: int, active_trade: Optional[Any] = None):
         """Slices and renders a micro-window of the DataFrame.
@@ -277,7 +280,10 @@ class InteractiveTradeInspector(ctk.CTkFrame):
         self._draw_solar_noon_lines(df_slice)
         self._draw_trade_brackets(df_slice, active_trade=active_trade)
 
-        self.canvas.draw_idle()
+        try:
+            self.canvas.draw()
+        except Exception:
+            self.canvas.draw_idle()
 
     # ==========================================================================
     # GANN & CELESTIAL OVERLAYS
@@ -387,9 +393,13 @@ class InteractiveTradeInspector(ctk.CTkFrame):
         n_bars = len(df_slice)
 
         # Retrieve trade attributes gracefully (supports dataclass or dict)
-        fill_time = getattr(trade, "fill_time", None) or getattr(trade, "dispatch_time", None)
+        fill_time = (
+            getattr(trade, "fill_time", None)
+            or getattr(trade, "entry_time", None)
+            or getattr(trade, "dispatch_time", None)
+        )
         if isinstance(trade, dict):
-            fill_time = trade.get("fill_time") or trade.get("dispatch_time")
+            fill_time = trade.get("fill_time") or trade.get("entry_time") or trade.get("dispatch_time")
         if fill_time is None:
             return
 
@@ -401,7 +411,7 @@ class InteractiveTradeInspector(ctk.CTkFrame):
 
         time_deltas = (ts_series - fill_time).abs()
         min_delta = time_deltas.min()
-        if min_delta > pd.Timedelta(minutes=25):
+        if min_delta > pd.Timedelta(hours=4):
             return
 
         i_entry = int(time_deltas.idxmin())
@@ -593,28 +603,41 @@ class InteractiveTradeInspector(ctk.CTkFrame):
     # ==========================================================================
     # DATA INGESTION & TRADE STEPPER
     # ==========================================================================
-    def load_trades_and_data(self, full_df: pd.DataFrame, trades: List[Any]):
-        """Ingests historical OHLCV data and executed trades, snaps to Trade #1."""
+    def load_data(self, full_df: pd.DataFrame, trades: Optional[List[Any]] = None):
+        """Standard public alias for load_trades_and_data."""
+        self.load_trades_and_data(full_df, trades or [])
+
+    def load_trades_and_data(self, full_df: pd.DataFrame, trades: Optional[List[Any]] = None):
+        """Ingests historical OHLCV data and executed trades, auto-rendering immediately."""
         if full_df is None or full_df.empty:
             return
 
-        self.full_df = full_df.copy().reset_index(drop=True)
-        if "timestamp" in self.full_df.columns and not pd.api.types.is_datetime64_any_dtype(self.full_df["timestamp"]):
+        self.full_df = full_df.copy()
+
+        # Preserve and standardize timestamp column
+        if "timestamp" not in self.full_df.columns:
+            if "timestamp_ist" in self.full_df.columns:
+                self.full_df["timestamp"] = self.full_df["timestamp_ist"]
+            elif isinstance(self.full_df.index, pd.DatetimeIndex):
+                self.full_df["timestamp"] = self.full_df.index
+            else:
+                base_time = pd.Timestamp("2024-01-01 09:15:00", tz="Asia/Kolkata")
+                self.full_df["timestamp"] = [base_time + pd.Timedelta(minutes=i) for i in range(len(self.full_df))]
+
+        self.full_df.reset_index(drop=True, inplace=True)
+        if not pd.api.types.is_datetime64_any_dtype(self.full_df["timestamp"]):
             self.full_df["timestamp"] = pd.to_datetime(self.full_df["timestamp"])
-        self.active_trades = trades or []
+
+        self.active_trades = list(trades or [])
         self.current_trade_idx = 0
 
         # Update Layer 1 Telemetry
         total_bars = len(self.full_df)
         y_min = float(self.full_df["low"].min())
         y_max = float(self.full_df["high"].max())
-        ts_start = str(self.full_df["timestamp"].iloc[0])[:10] if "timestamp" in self.full_df.columns else "N/A"
-        ts_end = str(self.full_df["timestamp"].iloc[-1])[:10] if "timestamp" in self.full_df.columns else "N/A"
-
-        if "timestamp" in self.full_df.columns:
-            days_count = len(self.full_df["timestamp"].dt.date.unique())
-        else:
-            days_count = max(1, total_bars // 375)
+        ts_start = str(self.full_df["timestamp"].iloc[0])[:10]
+        ts_end = str(self.full_df["timestamp"].iloc[-1])[:10]
+        days_count = len(self.full_df["timestamp"].dt.date.unique())
 
         self.update_telemetry(
             symbol="NIFTY50",
@@ -626,10 +649,13 @@ class InteractiveTradeInspector(ctk.CTkFrame):
             price_envelope=(y_min, y_max)
         )
 
+        # MANDATORY AUTO-RENDER:
+        # Immediately render Trade #1 if trades exist, else render the first 150 bars of raw market data
         if self.active_trades:
             self.jump_to_trade(0)
         else:
-            self.render_window(0, min(150, len(self.full_df)))
+            initial_bars = min(150, len(self.full_df))
+            self.render_window(0, initial_bars)
 
     def jump_to_trade(self, trade_idx: int):
         """Snaps canvas window around selected trade with -60m pre-entry and +120m post-entry bars."""
@@ -651,19 +677,24 @@ class InteractiveTradeInspector(ctk.CTkFrame):
             return
 
         # Locate entry bar index
-        fill_time = getattr(trade, "fill_time", None) or getattr(trade, "dispatch_time", None)
+        fill_time = (
+            getattr(trade, "fill_time", None)
+            or getattr(trade, "entry_time", None)
+            or getattr(trade, "dispatch_time", None)
+        )
         if isinstance(trade, dict):
-            fill_time = trade.get("fill_time") or trade.get("dispatch_time")
+            fill_time = trade.get("fill_time") or trade.get("entry_time") or trade.get("dispatch_time")
 
+        entry_bar_idx = 0
         if fill_time is not None and "timestamp" in self.full_df.columns:
             ts_series = pd.to_datetime(self.full_df["timestamp"])
             target_ts = pd.to_datetime(fill_time)
             if ts_series.dt.tz is None and target_ts.tzinfo is not None:
                 target_ts = target_ts.tz_localize(None)
+            elif ts_series.dt.tz is not None and target_ts.tzinfo is None:
+                target_ts = target_ts.tz_localize(ts_series.dt.tz)
             deltas = (ts_series - target_ts).abs()
             entry_bar_idx = int(deltas.idxmin())
-        else:
-            entry_bar_idx = 0
 
         # Dynamic window: -60 bars before entry, +120 bars after entry
         total_rows = len(self.full_df)

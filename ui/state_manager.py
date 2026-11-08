@@ -24,7 +24,7 @@ class UserPreferences:
     theme: str = "DARK"
     coordinate_frame: str = "GEOCENTRIC"     # "GEOCENTRIC" or "HELIOCENTRIC"
     active_view: str = "DUAL_SPLIT"          # "CONTROL_DECK", "CELESTIAL_WHEEL", "DUAL_SPLIT"
-    operating_mode: str = "LIVE"             # "LIVE" or "SIMULATION"
+    operating_mode: str = "SIMULATION"       # Forced Simulation Mode (Live Orders Blocked)
     active_script: str = "NIFTY_50"
     time_step: str = "1 Min"                 # "1 Min", "5 Mins", "15 Mins", "1 Hour", "Custom"
     custom_time: str = "13:56"

@@ -507,6 +507,13 @@ class APIRateLimiter:
 # 6. ORDER MANAGEMENT SYSTEM (OMS) & BRACKET DISPATCHER
 # ==============================================================================
 
+# ==============================================================================
+# GLOBAL SAFETY KILLSWITCH: LIVE BROKER ORDER PLACEMENT
+# Strictly True to completely block real market order placement and prevent account losses.
+# ==============================================================================
+LIVE_MARKET_ORDERS_BLOCKED: bool = True
+
+
 class OrderManagementSystem:
     """Pre-trade risk gateway, order tracking state machine, and broker order router.
     
@@ -530,14 +537,23 @@ class OrderManagementSystem:
         self.executed_node_lockouts: Set[str] = set()
         self.node_lockout_history: Dict[str, dict] = {}
         
-        # Live Execution Armed State (Default: False = Simulation Mode)
+        # Live Execution Armed State & User Safety Killswitch
         self.is_live_execution_armed: bool = False
+        self.live_orders_blocked: bool = LIVE_MARKET_ORDERS_BLOCKED
 
-    def arm_live_execution(self) -> None:
-        """Arms live broker execution. Real orders will be dispatched."""
+    def arm_live_execution(self) -> bool:
+        """Attempts to arm live broker execution. Blocked when safety killswitch is active."""
         with self._mutex:
+            if self.live_orders_blocked:
+                self.is_live_execution_armed = False
+                logger.warning(
+                    "SAFETY LOCKOUT: Live market order placement is temporarily BLOCKED by user directive. "
+                    "Cannot arm live broker orders while backtesting and efficiency optimization are active."
+                )
+                return False
             self.is_live_execution_armed = True
             logger.warning("OMS ALERT: Live execution is now ARMED (#F43F5E). Real broker orders will be routed!")
+            return True
 
     def disarm_live_execution(self) -> None:
         """Disarms live execution into safe Simulation Mode."""
@@ -614,10 +630,11 @@ class OrderManagementSystem:
             self.dispatched_signals.add(lockout_key)
             self.executed_node_lockouts.add(lockout_key)
 
-            # 6. Generate Order Identifier & Determine Execution State
+            # 6. Generate Order Identifier & Determine Execution State (Strict Safety Enforcement)
             order_id = f"ORD_{datetime.now().strftime('%Y%m%d%H%M%S%f')[:17]}_{len(self.active_orders)+1:03d}"
-            order_state = OrderState.OPEN if self.is_live_execution_armed else OrderState.FILLED
-            mode_tag = "LIVE" if self.is_live_execution_armed else "SIMULATION"
+            is_live = self.is_live_execution_armed and not self.live_orders_blocked
+            order_state = OrderState.OPEN if is_live else OrderState.FILLED
+            mode_tag = "LIVE" if is_live else "SIMULATION"
 
             broker_order = BrokerOrder(
                 order_id=order_id,

@@ -232,11 +232,11 @@ class MainWindow(ctk.CTk):
 
         self.btn_live_exec_toggle = ctk.CTkButton(
             self.strip,
-            text="🛡 SIMULATION EXEC",
+            text="🛡 LIVE BLOCKED",
             font=ctk.CTkFont(size=10, weight="bold"),
             fg_color=self.theme.bg_accent,
             hover_color=self.theme.border_color,
-            text_color=self.theme.text_secondary,
+            text_color=self.theme.accent_amber,
             command=self._toggle_live_execution_switch,
             width=140,
             height=28
@@ -554,28 +554,21 @@ class MainWindow(ctk.CTk):
         self._compute_and_refresh()
 
     def _toggle_live_execution_switch(self):
-        """Toggles between Safe Simulation Mode and Armed Real-Time Broker Execution (#F43F5E)."""
+        """Strictly enforces Safety Lockout: real broker orders cannot be armed while backtesting."""
         now_ist = datetime.now(IST)
-        if not self.oms.is_live_execution_armed:
-            self.oms.arm_live_execution()
-            self.btn_live_exec_toggle.configure(
-                text="⚡ LIVE EXEC ARMED",
-                fg_color="#F43F5E",
-                hover_color="#E11D48",
-                text_color="#FFFFFF"
-            )
-            self.alert_ledger.set_banner_alert("⚠️ LIVE BROKER EXECUTION ARMED (#F43F5E) — REAL ORDERS ACTIVE", is_critical=True)
-            self.alert_ledger.add_event("OMS", "⚠️ LIVE BROKER EXECUTION ARMED (#F43F5E). Real bracket orders will route to broker API!", now_ist.strftime("%H:%M:%S IST"))
-        else:
-            self.oms.disarm_live_execution()
-            self.btn_live_exec_toggle.configure(
-                text="🛡 SIMULATION EXEC",
-                fg_color=self.theme.bg_accent,
-                hover_color=self.theme.border_color,
-                text_color=self.theme.text_secondary
-            )
-            self.alert_ledger.set_banner_alert("SIMULATION MODE ACTIVE — Orders Registered In-Memory", is_critical=False)
-            self.alert_ledger.add_event("OMS", "🛡 Disarmed to Simulation Mode. Broker API orders disabled.", now_ist.strftime("%H:%M:%S IST"))
+        self.oms.disarm_live_execution()
+        self.btn_live_exec_toggle.configure(
+            text="🛡 LIVE BLOCKED",
+            fg_color=self.theme.bg_accent,
+            hover_color=self.theme.border_color,
+            text_color=self.theme.accent_amber
+        )
+        self.alert_ledger.set_banner_alert("🛡 SAFETY LOCK ACTIVE: Live Market Orders Blocked | 100% Simulation Mode", is_critical=False)
+        self.alert_ledger.add_event(
+            "SAFETY",
+            "Live market order placement is strictly BLOCKED by safety directive. All trades remain in 100% Simulation Mode to protect account capital.",
+            now_ist.strftime("%H:%M:%S IST")
+        )
 
     def _on_window_configure(self, event):
         """Debounce resize and cross-monitor DPI transition events (150ms)."""
@@ -608,6 +601,15 @@ class MainWindow(ctk.CTk):
         CustomScriptDialog(self, theme=self.theme, on_add_callback=_on_add)
 
     def _initial_load(self):
+        self.alert_ledger.set_banner_alert(
+            "🛡 SAFETY LOCK ACTIVE: Live Market Orders Blocked | 100% Simulation Mode",
+            is_critical=False
+        )
+        self.alert_ledger.add_event(
+            "SAFETY",
+            "Live market order placement temporarily blocked by user directive. System locked to Simulation Mode.",
+            datetime.now(IST).strftime("%H:%M:%S IST")
+        )
         self._compute_and_refresh()
 
     def _schedule_live_tick(self):

@@ -2,7 +2,7 @@
   "theme": "DARK",
   "coordinate_frame": "GEOCENTRIC",
   "active_view": "DUAL_SPLIT",
-  "operating_mode": "LIVE",
+  "operating_mode": "SIMULATION",
   "active_script": "NIFTY_50",
   "time_step": "5 Mins",
   "custom_time": "02:48",

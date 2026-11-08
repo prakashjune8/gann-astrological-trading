@@ -227,6 +227,18 @@ class BacktestDashboardView(ctk.CTkFrame):
         self.ledger_box.insert("end", "Trade ledger will populate automatically upon backtest completion.\n")
         self.ledger_box.configure(state="disabled")
 
+        # 4. Ingest trades and historical data into Interactive Trade & Method Inspector
+        if hasattr(self, "inspector_view"):
+            trades = (self.oos_ledger.trades if self.oos_ledger else []) or (self.is_ledger.trades if self.is_ledger else [])
+            raw_df = getattr(self.runner, "last_loaded_df", None)
+            if raw_df is None or raw_df.empty:
+                try:
+                    raw_df = self.loader.load_merged_range(self.symbol_var.get(), date(2023, 1, 1), date(2023, 12, 31))
+                except Exception:
+                    raw_df = None
+            if raw_df is not None and not raw_df.empty:
+                self.inspector_view.load_trades_and_data(raw_df, trades)
+
     def _load_initial_visuals(self):
         """Loads and embeds any pre-computed charts from reports/figures/."""
         c1 = self.fig_dir / "c1_equity.png"
@@ -391,6 +403,18 @@ class BacktestDashboardView(ctk.CTkFrame):
                 self.ledger_box.insert("end", line)
 
         self.ledger_box.configure(state="disabled")
+
+        # 4. Ingest trades and historical data into Interactive Trade & Method Inspector
+        if hasattr(self, "inspector_view"):
+            trades = (self.oos_ledger.trades if self.oos_ledger else []) or (self.is_ledger.trades if self.is_ledger else [])
+            raw_df = getattr(self.runner, "last_loaded_df", None)
+            if raw_df is None or raw_df.empty:
+                try:
+                    raw_df = self.loader.load_merged_range(self.symbol_var.get(), date(2023, 1, 1), date(2023, 12, 31))
+                except Exception:
+                    raw_df = None
+            if raw_df is not None and not raw_df.empty:
+                self.inspector_view.load_trades_and_data(raw_df, trades)
 
     def _on_simulation_error(self, err_msg: str):
         """Invoked if the background worker encounters an exception."""

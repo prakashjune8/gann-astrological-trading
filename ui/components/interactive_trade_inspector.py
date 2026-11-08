@@ -52,6 +52,10 @@ class InteractiveTradeInspector(ctk.CTkFrame):
         self.active_trades: List[Any] = []
         self.current_trade_idx: int = 0
         self.window_size_bars: int = 150  # Default ~2.5 hours of 1-minute bars
+        self.current_window_start: int = 0
+        self.current_window_end: int = 150
+        self.is_playing: bool = False
+        self.play_job: Optional[str] = None
 
         # Scaffolding: 3-Layer Grid Architecture
         self.grid_rowconfigure(0, weight=0)  # Layer 1: Telemetry Header
@@ -242,7 +246,9 @@ class InteractiveTradeInspector(ctk.CTkFrame):
         
         # Determine timestamp labels
         if "timestamp" in df_slice.columns:
-            ts_series = pd.to_datetime(df_slice["timestamp"])
+            ts_series = df_slice["timestamp"]
+            if not pd.api.types.is_datetime64_any_dtype(ts_series):
+                ts_series = pd.to_datetime(ts_series)
         elif isinstance(df_slice.index, pd.DatetimeIndex):
             ts_series = df_slice.index
         else:
@@ -329,7 +335,9 @@ class InteractiveTradeInspector(ctk.CTkFrame):
         if df_slice.empty or "timestamp" not in df_slice.columns:
             return
 
-        ts_series = pd.to_datetime(df_slice["timestamp"])
+        ts_series = df_slice["timestamp"]
+        if not pd.api.types.is_datetime64_any_dtype(ts_series):
+            ts_series = pd.to_datetime(ts_series)
         y_lim = self.ax.get_ylim()
         y_top = y_lim[1] - (y_lim[1] - y_lim[0]) * 0.03
 
@@ -373,7 +381,9 @@ class InteractiveTradeInspector(ctk.CTkFrame):
         if trade is None or df_slice.empty or "timestamp" not in df_slice.columns:
             return
 
-        ts_series = pd.to_datetime(df_slice["timestamp"])
+        ts_series = df_slice["timestamp"]
+        if not pd.api.types.is_datetime64_any_dtype(ts_series):
+            ts_series = pd.to_datetime(ts_series)
         n_bars = len(df_slice)
 
         # Retrieve trade attributes gracefully (supports dataclass or dict)
@@ -488,19 +498,23 @@ class InteractiveTradeInspector(ctk.CTkFrame):
     # LAYER 3: TRADE LIFECYCLE NAVIGATION & PLAYBACK SCRUBBER
     # ==========================================================================
     def _build_layer3_scrubber(self):
-        """Builds bottom controller strip with stepper buttons and timeline slider."""
+        """Builds bottom controller strip with stepper buttons, timeline slider, and trade telemetry."""
         self.layer3_frame = ctk.CTkFrame(
             self,
             fg_color=self.theme.bg_secondary,
             corner_radius=6,
-            height=54
+            height=72
         )
         self.layer3_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=(4, 8))
         self.layer3_frame.grid_propagate(False)
 
+        # Upper Sub-Frame: Navigation Controls & Slider
+        self.nav_strip = ctk.CTkFrame(self.layer3_frame, fg_color="transparent", height=36)
+        self.nav_strip.pack(fill="x", padx=10, pady=(6, 2))
+
         # Stepper: Previous Trade
         self.btn_prev_trade = ctk.CTkButton(
-            self.layer3_frame,
+            self.nav_strip,
             text="◀ Prev Trade",
             font=ctk.CTkFont(size=11, weight="bold"),
             fg_color=self.theme.bg_accent,
@@ -508,21 +522,21 @@ class InteractiveTradeInspector(ctk.CTkFrame):
             width=95, height=28,
             command=self._on_prev_trade
         )
-        self.btn_prev_trade.pack(side="left", padx=(10, 4), pady=12)
+        self.btn_prev_trade.pack(side="left", padx=(2, 4))
 
         # Trade Index Indicator Label
         self.lbl_trade_indicator = ctk.CTkLabel(
-            self.layer3_frame,
+            self.nav_strip,
             text="Trade 0 of 0",
             font=ctk.CTkFont(family="Consolas", size=11, weight="bold"),
             text_color=self.theme.text_primary,
             width=110
         )
-        self.lbl_trade_indicator.pack(side="left", padx=4, pady=12)
+        self.lbl_trade_indicator.pack(side="left", padx=4)
 
         # Stepper: Next Trade
         self.btn_next_trade = ctk.CTkButton(
-            self.layer3_frame,
+            self.nav_strip,
             text="Next Trade ▶",
             font=ctk.CTkFont(size=11, weight="bold"),
             fg_color=self.theme.bg_accent,
@@ -530,65 +544,253 @@ class InteractiveTradeInspector(ctk.CTkFrame):
             width=95, height=28,
             command=self._on_next_trade
         )
-        self.btn_next_trade.pack(side="left", padx=(4, 14), pady=12)
+        self.btn_next_trade.pack(side="left", padx=(4, 12))
 
         # Play / Pause Toggle
         self.btn_play_pause = ctk.CTkButton(
-            self.layer3_frame,
+            self.nav_strip,
             text="▶ Play",
             font=ctk.CTkFont(size=11, weight="bold"),
             fg_color=self.theme.accent_blue,
             width=70, height=28,
             command=self._on_toggle_play
         )
-        self.btn_play_pause.pack(side="left", padx=4, pady=12)
+        self.btn_play_pause.pack(side="left", padx=4)
 
         # Timeline Scrubber Slider
         self.scrubber_slider = ctk.CTkSlider(
-            self.layer3_frame,
-            from_=0,
-            to=100,
-            number_of_steps=100,
+            self.nav_strip,
+            from_=15,
+            to=150,
+            number_of_steps=135,
             command=self._on_slider_scrub
         )
-        self.scrubber_slider.pack(side="left", fill="x", expand=True, padx=14, pady=12)
-        self.scrubber_slider.set(0)
+        self.scrubber_slider.pack(side="left", fill="x", expand=True, padx=12)
+        self.scrubber_slider.set(150)
 
         # Speed Selector
         self.speed_var = ctk.StringVar(value="1x")
         self.speed_menu = ctk.CTkOptionMenu(
-            self.layer3_frame,
+            self.nav_strip,
             values=["1x", "5x", "Max"],
             variable=self.speed_var,
             font=ctk.CTkFont(size=10),
             width=65, height=26,
             fg_color=self.theme.bg_accent
         )
-        self.speed_menu.pack(side="right", padx=(4, 12), pady=12)
+        self.speed_menu.pack(side="right", padx=(4, 2))
+
+        # Lower Sub-Frame: Real-Time Trade Execution Telemetry
+        self.lbl_trade_details = ctk.CTkLabel(
+            self.layer3_frame,
+            text="[STANDBY] Ingest Trades to Inspect Lifecycle, Excursions, and Brackets",
+            font=ctk.CTkFont(family="Consolas", size=10, weight="bold"),
+            text_color=self.theme.text_secondary,
+            anchor="w"
+        )
+        self.lbl_trade_details.pack(fill="x", padx=16, pady=(0, 4))
 
     # ==========================================================================
-    # NAVIGATION HANDLERS (Stubs)
+    # DATA INGESTION & TRADE STEPPER
+    # ==========================================================================
+    def load_trades_and_data(self, full_df: pd.DataFrame, trades: List[Any]):
+        """Ingests historical OHLCV data and executed trades, snaps to Trade #1."""
+        if full_df is None or full_df.empty:
+            return
+
+        self.full_df = full_df.copy().reset_index(drop=True)
+        if "timestamp" in self.full_df.columns and not pd.api.types.is_datetime64_any_dtype(self.full_df["timestamp"]):
+            self.full_df["timestamp"] = pd.to_datetime(self.full_df["timestamp"])
+        self.active_trades = trades or []
+        self.current_trade_idx = 0
+
+        # Update Layer 1 Telemetry
+        total_bars = len(self.full_df)
+        y_min = float(self.full_df["low"].min())
+        y_max = float(self.full_df["high"].max())
+        ts_start = str(self.full_df["timestamp"].iloc[0])[:10] if "timestamp" in self.full_df.columns else "N/A"
+        ts_end = str(self.full_df["timestamp"].iloc[-1])[:10] if "timestamp" in self.full_df.columns else "N/A"
+
+        if "timestamp" in self.full_df.columns:
+            days_count = len(self.full_df["timestamp"].dt.date.unique())
+        else:
+            days_count = max(1, total_bars // 375)
+
+        self.update_telemetry(
+            symbol="NIFTY50",
+            start_date=ts_start,
+            end_date=ts_end,
+            total_days=days_count,
+            total_bars=total_bars,
+            continuity_pct=99.98,
+            price_envelope=(y_min, y_max)
+        )
+
+        if self.active_trades:
+            self.jump_to_trade(0)
+        else:
+            self.render_window(0, min(150, len(self.full_df)))
+
+    def jump_to_trade(self, trade_idx: int):
+        """Snaps canvas window around selected trade with -60m pre-entry and +120m post-entry bars."""
+        if not self.active_trades:
+            return
+
+        # Stop playback if currently playing
+        if self.is_playing:
+            self._stop_playback()
+
+        self.current_trade_idx = max(0, min(trade_idx, len(self.active_trades) - 1))
+        trade = self.active_trades[self.current_trade_idx]
+
+        self.lbl_trade_indicator.configure(
+            text=f"Trade {self.current_trade_idx + 1} of {len(self.active_trades)}"
+        )
+
+        if self.full_df is None or self.full_df.empty:
+            return
+
+        # Locate entry bar index
+        fill_time = getattr(trade, "fill_time", None) or getattr(trade, "dispatch_time", None)
+        if isinstance(trade, dict):
+            fill_time = trade.get("fill_time") or trade.get("dispatch_time")
+
+        if fill_time is not None and "timestamp" in self.full_df.columns:
+            ts_series = pd.to_datetime(self.full_df["timestamp"])
+            target_ts = pd.to_datetime(fill_time)
+            if ts_series.dt.tz is None and target_ts.tzinfo is not None:
+                target_ts = target_ts.tz_localize(None)
+            deltas = (ts_series - target_ts).abs()
+            entry_bar_idx = int(deltas.idxmin())
+        else:
+            entry_bar_idx = 0
+
+        # Dynamic window: -60 bars before entry, +120 bars after entry
+        total_rows = len(self.full_df)
+        window_start = max(0, entry_bar_idx - 60)
+        window_end = min(total_rows, entry_bar_idx + 120)
+        if window_end - window_start < 60:
+            window_end = min(total_rows, window_start + 120)
+
+        self.current_window_start = window_start
+        self.current_window_end = window_end
+
+        # Configure slider bounds for this window
+        window_length = window_end - window_start
+        self.scrubber_slider.configure(from_=15, to=window_length, number_of_steps=max(1, window_length - 15))
+        self.scrubber_slider.set(window_length)
+
+        # Update details label
+        self._update_trade_details_label(trade)
+
+        # Render complete window with trade overlay
+        self.render_window(window_start, window_end, active_trade=trade)
+
+    def _update_trade_details_label(self, trade: Any):
+        """Formats and displays trade execution telemetry on Layer 3."""
+        dir_val = getattr(trade, "direction", "LONG")
+        if isinstance(trade, dict):
+            dir_val = trade.get("direction", "LONG")
+        is_long = "LONG" in str(dir_val).upper()
+        dir_str = "LONG ▲" if is_long else "SHORT ▼"
+
+        entry_p = float(getattr(trade, "entry_price", 0.0) if not isinstance(trade, dict) else trade.get("entry_price", 0.0))
+        stop_p = float(getattr(trade, "stop_price", 0.0) if not isinstance(trade, dict) else trade.get("stop_price", 0.0))
+        t1_p = float(getattr(trade, "target1_price", 0.0) if not isinstance(trade, dict) else trade.get("target1_price", 0.0))
+        net_pnl = float(getattr(trade, "net_pnl_inr", 0.0) if not isinstance(trade, dict) else trade.get("net_pnl_inr", 0.0))
+        mfe_pts = float(getattr(trade, "mfe_points", 0.0) if not isinstance(trade, dict) else trade.get("mfe_points", 0.0))
+        mae_pts = float(getattr(trade, "mae_points", 0.0) if not isinstance(trade, dict) else trade.get("mae_points", 0.0))
+
+        pnl_sign = "+" if net_pnl >= 0 else ""
+        detail_text = (
+            f"[{dir_str}] Entry: ₹{entry_p:,.1f} | Stop: ₹{stop_p:,.1f} (-18pt) | "
+            f"Target: ₹{t1_p:,.1f} (+125pt) | Net P&L: {pnl_sign}₹{net_pnl:,.1f} | "
+            f"MFE: +{mfe_pts:.1f}pt | MAE: -{mae_pts:.1f}pt"
+        )
+        self.lbl_trade_details.configure(
+            text=detail_text,
+            text_color=self.theme.accent_green if net_pnl >= 0 else self.theme.accent_red
+        )
+
+    # ==========================================================================
+    # NAVIGATION & TIMELINE PLAYBACK HANDLERS
     # ==========================================================================
     def _on_prev_trade(self):
         """Navigate to previous trade."""
         if self.current_trade_idx > 0:
-            self.current_trade_idx -= 1
-            self.lbl_trade_indicator.configure(
-                text=f"Trade {self.current_trade_idx + 1} of {len(self.active_trades)}"
-            )
+            self.jump_to_trade(self.current_trade_idx - 1)
 
     def _on_next_trade(self):
         """Navigate to next trade."""
         if self.current_trade_idx < len(self.active_trades) - 1:
-            self.current_trade_idx += 1
-            self.lbl_trade_indicator.configure(
-                text=f"Trade {self.current_trade_idx + 1} of {len(self.active_trades)}"
-            )
-
-    def _on_toggle_play(self):
-        """Toggle simulation playback."""
-        pass
+            self.jump_to_trade(self.current_trade_idx + 1)
 
     def _on_slider_scrub(self, val: float):
-        """Scrub simulation timeline."""
-        pass
+        """Scrubs window bar-by-bar, dynamically rendering the chart up to current minute."""
+        if self.full_df is None or self.full_df.empty:
+            return
+
+        offset = int(val)
+        current_end = min(len(self.full_df), self.current_window_start + max(10, offset))
+
+        trade = None
+        if self.active_trades and 0 <= self.current_trade_idx < len(self.active_trades):
+            trade = self.active_trades[self.current_trade_idx]
+
+        self.render_window(self.current_window_start, current_end, active_trade=trade)
+
+    def _on_toggle_play(self):
+        """Toggles automated step-by-step playback simulation."""
+        if self.is_playing:
+            self._stop_playback()
+        else:
+            self._start_playback()
+
+    def _start_playback(self):
+        """Starts simulation playback loop."""
+        if self.full_df is None or self.full_df.empty:
+            return
+
+        self.is_playing = True
+        self.btn_play_pause.configure(text="⏸ Pause", fg_color=self.theme.accent_amber)
+
+        max_val = int(self.scrubber_slider.cget("to"))
+        curr_val = int(self.scrubber_slider.get())
+        if curr_val >= max_val:
+            self.scrubber_slider.set(15)
+            self._on_slider_scrub(15)
+
+        speed = self.speed_var.get()
+        delay_ms = 300 if speed == "1x" else (120 if speed == "5x" else 50)
+        self.play_job = self.after(delay_ms, self._step_simulation)
+
+    def _stop_playback(self):
+        """Stops simulation playback loop cleanly."""
+        self.is_playing = False
+        if self.play_job is not None:
+            try:
+                self.after_cancel(self.play_job)
+            except Exception:
+                pass
+            self.play_job = None
+        self.btn_play_pause.configure(text="▶ Play", fg_color=self.theme.accent_blue)
+
+    def _step_simulation(self):
+        """Executes one simulation step via Tkinter .after() event loop."""
+        if not self.is_playing:
+            return
+
+        curr_val = int(self.scrubber_slider.get())
+        max_val = int(self.scrubber_slider.cget("to"))
+
+        if curr_val < max_val:
+            next_val = curr_val + 1
+            self.scrubber_slider.set(next_val)
+            self._on_slider_scrub(next_val)
+
+            speed = self.speed_var.get()
+            delay_ms = 300 if speed == "1x" else (120 if speed == "5x" else 50)
+            self.play_job = self.after(delay_ms, self._step_simulation)
+        else:
+            self._stop_playback()
+

@@ -23,6 +23,8 @@ from matplotlib.figure import Figure
 import matplotlib.dates as mdates
 
 from ui.theme import ThemeTokens, DARK_THEME
+from core.price_harmonics import PriceHarmonicsEngine, GannPriceLevel
+from core.geo_temporal import calculate_true_solar_noon
 
 logger = logging.getLogger("interactive_trade_inspector")
 
@@ -171,7 +173,7 @@ class InteractiveTradeInspector(ctk.CTkFrame):
         self.ax.set_yticks([])
         self.canvas.draw_idle()
 
-    def render_window(self, start_idx: int, end_idx: int):
+    def render_window(self, start_idx: int, end_idx: int, active_trade: Optional[Any] = None):
         """Slices and renders a micro-window of the DataFrame.
         
         CRITICAL PERFORMANCE MANDATE:
@@ -187,9 +189,9 @@ class InteractiveTradeInspector(ctk.CTkFrame):
         df_slice = self.full_df.iloc[start_idx:end_idx].copy().reset_index(drop=True)
         self.current_slice = df_slice
 
-        self.draw_candlesticks(df_slice)
+        self.draw_candlesticks(df_slice, active_trade=active_trade)
 
-    def draw_candlesticks(self, df_slice: pd.DataFrame):
+    def draw_candlesticks(self, df_slice: pd.DataFrame, active_trade: Optional[Any] = None):
         """Renders high-speed vector candlesticks over the sliced micro-window."""
         if df_slice.empty:
             return
@@ -259,32 +261,228 @@ class InteractiveTradeInspector(ctk.CTkFrame):
         # 4. Y-Axis Bounds with breathing room
         y_min = float(np.min(lows))
         y_max = float(np.max(highs))
-        padding = (y_max - y_min) * 0.08 if y_max > y_min else 10.0
+        padding = (y_max - y_min) * 0.12 if y_max > y_min else 10.0
         self.ax.set_ylim(y_min - padding, y_max + padding)
         self.ax.yaxis.tick_right()
         self.ax.yaxis.set_label_position("right")
 
-        # 5. Call Overlay Stubs (Sub-Task 2 integration targets)
+        # 5. Call Mathematical Overlays
         self._draw_gann_price_rays(df_slice)
         self._draw_solar_noon_lines(df_slice)
-        self._draw_trade_brackets(df_slice)
+        self._draw_trade_brackets(df_slice, active_trade=active_trade)
 
         self.canvas.draw_idle()
 
     # ==========================================================================
-    # GANN & CELESTIAL OVERLAY STUBS (Sub-Task 2 Targets)
+    # GANN & CELESTIAL OVERLAYS
     # ==========================================================================
     def _draw_gann_price_rays(self, df_slice: pd.DataFrame):
-        """Placeholder stub for Square of Nine price harmonics (Sub-Task 2)."""
-        pass
+        """Draws dynamic Square of Nine Cardinal (0°, 90°, 180°, 270°) and Fixed Cross (45°, 135°, 225°, 315°) rays."""
+        if df_slice.empty:
+            return
+
+        n_bars = len(df_slice)
+        lows = df_slice["low"].to_numpy(dtype=float)
+        highs = df_slice["high"].to_numpy(dtype=float)
+        y_min = float(np.min(lows))
+        y_max = float(np.max(highs))
+        mid_price = (y_min + y_max) / 2.0
+
+        cardinal_levels = PriceHarmonicsEngine.calculate_cardinal_cross(mid_price)
+        fixed_levels = PriceHarmonicsEngine.calculate_fixed_cross(mid_price)
+
+        p_low_bound = y_min * 0.993
+        p_high_bound = y_max * 1.007
+
+        # 1. Cardinal Cross (90°, 180°, 270°, 0°/360°) -> Electric Cyan #00f0ff
+        cyan_color = "#00f0ff"
+        for lvl in cardinal_levels:
+            if p_low_bound <= lvl.price <= p_high_bound:
+                self.ax.axhline(
+                    lvl.price, color=cyan_color, linestyle="-",
+                    alpha=0.38, linewidth=0.85, zorder=2
+                )
+                self.ax.text(
+                    n_bars - 1, lvl.price,
+                    f" {int(lvl.angle_degrees)}°: ₹{lvl.price:,.1f}",
+                    color=cyan_color, fontsize=7.5, va="center", ha="left",
+                    alpha=0.85, zorder=2
+                )
+
+        # 2. Fixed Cross (45°, 135°, 225°, 315°) -> Neon Ruby #f43f5e
+        ruby_color = "#f43f5e"
+        for lvl in fixed_levels:
+            if p_low_bound <= lvl.price <= p_high_bound:
+                self.ax.axhline(
+                    lvl.price, color=ruby_color, linestyle="--",
+                    alpha=0.32, linewidth=0.75, zorder=2
+                )
+                self.ax.text(
+                    n_bars - 1, lvl.price,
+                    f" {int(lvl.angle_degrees)}°: ₹{lvl.price:,.1f}",
+                    color=ruby_color, fontsize=7.5, va="center", ha="left",
+                    alpha=0.80, zorder=2
+                )
 
     def _draw_solar_noon_lines(self, df_slice: pd.DataFrame):
-        """Placeholder stub for True Solar Noon and 180° midpoints (Sub-Task 2)."""
-        pass
+        """Scans slice timestamps and marks 180° session midpoint (12:22:30 IST) and Spencer True Solar Noon."""
+        if df_slice.empty or "timestamp" not in df_slice.columns:
+            return
 
-    def _draw_trade_brackets(self, df_slice: pd.DataFrame):
-        """Placeholder stub for Entry arrow, Stop (-18pt), Target (+125pt) (Sub-Task 2)."""
-        pass
+        ts_series = pd.to_datetime(df_slice["timestamp"])
+        y_lim = self.ax.get_ylim()
+        y_top = y_lim[1] - (y_lim[1] - y_lim[0]) * 0.03
+
+        seen_midpoint_dates = set()
+        seen_solar_noon_dates = set()
+
+        for i, ts in enumerate(ts_series):
+            d = ts.date()
+
+            # 1. 180° Session Midpoint (12:22:30 IST)
+            if d not in seen_midpoint_dates and ts.hour == 12 and ts.minute in (22, 23):
+                seen_midpoint_dates.add(d)
+                self.ax.axvline(i, color="#00f0ff", linestyle="--", linewidth=1.1, alpha=0.65, zorder=3)
+                self.ax.text(
+                    i, y_top, " 180° MIDPOINT\n 12:22:30 IST",
+                    color="#00f0ff", fontsize=7.5, fontweight="bold",
+                    va="top", ha="center", alpha=0.9, zorder=4
+                )
+
+            # 2. Spencer True Solar Noon
+            if d not in seen_solar_noon_dates:
+                try:
+                    sn = calculate_true_solar_noon(d)
+                    if ts.hour == sn.hour and abs(ts.minute - sn.minute) <= 1:
+                        seen_solar_noon_dates.add(d)
+                        self.ax.axvline(i, color="#f59e0b", linestyle=":", linewidth=1.1, alpha=0.65, zorder=3)
+                        self.ax.text(
+                            i, y_top, f" SOLAR NOON\n {sn.strftime('%H:%M')} IST",
+                            color="#f59e0b", fontsize=7.5, fontweight="bold",
+                            va="top", ha="center", alpha=0.9, zorder=4
+                        )
+                except Exception:
+                    pass
+
+    def _draw_trade_brackets(self, df_slice: pd.DataFrame, active_trade: Optional[Any] = None):
+        """Draws Entry arrow, Stop (-18pt), Targets (+125/+252pt), Excursions and Exit badge."""
+        trade = active_trade
+        if trade is None and self.active_trades and 0 <= self.current_trade_idx < len(self.active_trades):
+            trade = self.active_trades[self.current_trade_idx]
+
+        if trade is None or df_slice.empty or "timestamp" not in df_slice.columns:
+            return
+
+        ts_series = pd.to_datetime(df_slice["timestamp"])
+        n_bars = len(df_slice)
+
+        # Retrieve trade attributes gracefully (supports dataclass or dict)
+        fill_time = getattr(trade, "fill_time", None) or getattr(trade, "dispatch_time", None)
+        if isinstance(trade, dict):
+            fill_time = trade.get("fill_time") or trade.get("dispatch_time")
+        if fill_time is None:
+            return
+
+        fill_time = pd.to_datetime(fill_time)
+        if ts_series.dt.tz is None and fill_time.tzinfo is not None:
+            fill_time = fill_time.tz_localize(None)
+        elif ts_series.dt.tz is not None and fill_time.tzinfo is None:
+            fill_time = fill_time.tz_localize(ts_series.dt.tz)
+
+        time_deltas = (ts_series - fill_time).abs()
+        min_delta = time_deltas.min()
+        if min_delta > pd.Timedelta(minutes=25):
+            return
+
+        i_entry = int(time_deltas.idxmin())
+
+        # Direction
+        dir_val = getattr(trade, "direction", "LONG")
+        if isinstance(trade, dict):
+            dir_val = trade.get("direction", "LONG")
+        is_long = "LONG" in str(dir_val).upper()
+
+        # Prices
+        entry_p = float(getattr(trade, "entry_price", 0.0) if not isinstance(trade, dict) else trade.get("entry_price", 0.0))
+        stop_p = float(getattr(trade, "stop_price", 0.0) if not isinstance(trade, dict) else trade.get("stop_price", 0.0))
+        t1_p = float(getattr(trade, "target1_price", 0.0) if not isinstance(trade, dict) else trade.get("target1_price", 0.0))
+        t2_p = float(getattr(trade, "target2_price", 0.0) if not isinstance(trade, dict) else trade.get("target2_price", 0.0))
+
+        if stop_p == 0.0:
+            stop_p = entry_p - 18.0 if is_long else entry_p + 18.0
+        if t1_p == 0.0:
+            t1_p = entry_p + 125.0 if is_long else entry_p - 125.0
+        if t2_p == 0.0:
+            t2_p = entry_p + 252.0 if is_long else entry_p - 252.0
+
+        # Exit bar matching
+        exit_time = getattr(trade, "exit_time", None) if not isinstance(trade, dict) else trade.get("exit_time")
+        if exit_time is not None:
+            exit_time = pd.to_datetime(exit_time)
+            if ts_series.dt.tz is None and exit_time.tzinfo is not None:
+                exit_time = exit_time.tz_localize(None)
+            exit_deltas = (ts_series - exit_time).abs()
+            i_exit = int(exit_deltas.idxmin())
+            i_exit = max(i_entry, min(i_exit, n_bars - 1))
+        else:
+            i_exit = n_bars - 1
+
+        # 1. Entry Marker
+        marker = "^" if is_long else "v"
+        m_color = "#10b981" if is_long else "#ef4444"
+        self.ax.plot(
+            i_entry, entry_p, marker=marker, markersize=11,
+            color=m_color, markeredgecolor="#ffffff", markeredgewidth=1.2, zorder=12
+        )
+        self.ax.text(
+            i_entry, entry_p + (4 if is_long else -8),
+            f" {'BUY' if is_long else 'SELL'} @ ₹{entry_p:,.1f}",
+            color=m_color, fontsize=8, fontweight="bold",
+            va="bottom" if is_long else "top", ha="center", zorder=12
+        )
+
+        # 2. Horizontal Bracket Lines
+        # Stop Loss (-18pt) -> Solid Red
+        self.ax.hlines(stop_p, i_entry, i_exit, color="#ef4444", linestyle="-", linewidth=1.5, zorder=10, alpha=0.9)
+        self.ax.text(i_exit, stop_p, f" STOP: ₹{stop_p:,.1f} (-18pt)", color="#ef4444", fontsize=7.5, fontweight="bold", va="center", ha="left")
+
+        # Target 1 (+125pt) -> Dashed Green
+        self.ax.hlines(t1_p, i_entry, i_exit, color="#10b981", linestyle="--", linewidth=1.3, zorder=10, alpha=0.9)
+        self.ax.text(i_exit, t1_p, f" TARGET 1: ₹{t1_p:,.1f} (+125pt)", color="#10b981", fontsize=7.5, fontweight="bold", va="center", ha="left")
+
+        # Target 2 (+252pt) -> Dotted Cyan
+        self.ax.hlines(t2_p, i_entry, i_exit, color="#00f0ff", linestyle=":", linewidth=1.1, zorder=10, alpha=0.8)
+        self.ax.text(i_exit, t2_p, f" TARGET 2: ₹{t2_p:,.1f} (+252pt)", color="#00f0ff", fontsize=7.5, fontweight="bold", va="center", ha="left")
+
+        # 3. Excursion Ribbons (MFE / MAE)
+        mfe_pts = float(getattr(trade, "mfe_points", 0.0) if not isinstance(trade, dict) else trade.get("mfe_points", 0.0))
+        mae_pts = float(getattr(trade, "mae_points", 0.0) if not isinstance(trade, dict) else trade.get("mae_points", 0.0))
+
+        if mfe_pts > 0 or mae_pts > 0:
+            x_bracket = np.arange(i_entry, i_exit + 1)
+            mfe_p = entry_p + mfe_pts if is_long else entry_p - mfe_pts
+            mae_p = entry_p - mae_pts if is_long else entry_p + mae_pts
+            self.ax.fill_between(x_bracket, entry_p, mfe_p, color="#10b981", alpha=0.08, zorder=1)
+            self.ax.fill_between(x_bracket, entry_p, mae_p, color="#ef4444", alpha=0.08, zorder=1)
+
+        # 4. Exit Resolution Marker
+        is_closed = getattr(trade, "is_closed", True) if not isinstance(trade, dict) else trade.get("is_closed", True)
+        if is_closed and i_exit > i_entry:
+            exit_p = float(getattr(trade, "exit_price", entry_p) if not isinstance(trade, dict) else trade.get("exit_price", entry_p))
+            net_pnl = float(getattr(trade, "net_pnl_inr", 0.0) if not isinstance(trade, dict) else trade.get("net_pnl_inr", 0.0))
+            pnl_sign = "+" if net_pnl >= 0 else ""
+            exit_color = "#10b981" if net_pnl >= 0 else "#ef4444"
+
+            self.ax.plot(
+                i_exit, exit_p, marker="D", markersize=8,
+                color=exit_color, markeredgecolor="#ffffff", markeredgewidth=1.0, zorder=12
+            )
+            self.ax.text(
+                i_exit, exit_p,
+                f" EXIT: {pnl_sign}₹{net_pnl:,.1f}",
+                color=exit_color, fontsize=8, fontweight="bold",
+                va="top" if is_long else "bottom", ha="center", zorder=12
+            )
 
     # ==========================================================================
     # LAYER 3: TRADE LIFECYCLE NAVIGATION & PLAYBACK SCRUBBER

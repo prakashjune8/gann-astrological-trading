@@ -71,6 +71,7 @@ def build_application():
         "--hidden-import=ui.windows.backtest_window",
         "--hidden-import=ui.components.interactive_trade_inspector",
         "--hidden-import=ui.components.backtest_dashboard_view",
+        "--hidden-import=core.data_vault_manager",
         f"--distpath={dist_dir}",
         f"--workpath={build_dir}",
     ] + add_data_args + [

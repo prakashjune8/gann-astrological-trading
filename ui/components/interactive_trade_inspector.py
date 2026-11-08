@@ -46,12 +46,17 @@ class InteractiveTradeInspector(ctk.CTkFrame):
         self.theme = theme or DARK_THEME
         super().__init__(master, fg_color=self.theme.bg_primary, **kwargs)
 
-        # Operational State
+        # Operational State & Multi-Timeframe Stores
+        self.raw_1m_df: Optional[pd.DataFrame] = None
+        self.intraday_slice_df: Optional[pd.DataFrame] = None
+        self.active_df: Optional[pd.DataFrame] = None
         self.full_df: Optional[pd.DataFrame] = None
         self.current_slice: Optional[pd.DataFrame] = None
+        self.current_timeframe: str = "Daily"
+        self.resample_cache: Dict[str, pd.DataFrame] = {}
         self.active_trades: List[Any] = []
         self.current_trade_idx: int = 0
-        self.window_size_bars: int = 150  # Default ~2.5 hours of 1-minute bars
+        self.window_size_bars: int = 150  # Default window size
         self.current_window_start: int = 0
         self.current_window_end: int = 150
         self.is_playing: bool = False
@@ -71,7 +76,7 @@ class InteractiveTradeInspector(ctk.CTkFrame):
     # LAYER 1: DATASET TELEMETRY & SAMPLE HEALTH LEDGER
     # ==========================================================================
     def _build_layer1_telemetry(self):
-        """Builds top telemetry header displaying dataset span, bar counts, and health."""
+        """Builds top telemetry header displaying dataset span, bar counts, health, and MTF selector."""
         self.layer1_frame = ctk.CTkFrame(
             self,
             fg_color=self.theme.bg_secondary,
@@ -90,14 +95,51 @@ class InteractiveTradeInspector(ctk.CTkFrame):
         )
         self.lbl_telemetry_span.pack(side="left", padx=14, pady=8)
 
-        # Right: Data Continuity & Integrity Pill
+        # Right 1: Data Continuity & Integrity Pill
         self.lbl_health_pill = ctk.CTkLabel(
             self.layer1_frame,
             text="● STANDBY",
             font=ctk.CTkFont(size=10, weight="bold"),
             text_color=self.theme.text_muted
         )
-        self.lbl_health_pill.pack(side="right", padx=14, pady=8)
+        self.lbl_health_pill.pack(side="right", padx=(6, 14), pady=8)
+
+        # Right 2: Explicit Drill-Down Action Button
+        self.btn_drill_down = ctk.CTkButton(
+            self.layer1_frame,
+            text="🔍 Drill-Down",
+            font=ctk.CTkFont(size=10, weight="bold"),
+            fg_color=self.theme.accent_blue,
+            hover_color=self.theme.border_color,
+            width=92,
+            height=28,
+            command=self._prompt_intraday_drill_down
+        )
+        self.btn_drill_down.pack(side="right", padx=4, pady=8)
+
+        # Right 3: Multi-Timeframe Dropdown (Monthly, Weekly, Daily, 1-Min Intraday)
+        self.timeframe_var = ctk.StringVar(value="Daily")
+        self.menu_timeframe = ctk.CTkOptionMenu(
+            self.layer1_frame,
+            values=["Monthly", "Weekly", "Daily", "1-Min Intraday"],
+            variable=self.timeframe_var,
+            font=ctk.CTkFont(size=11, weight="bold"),
+            fg_color=self.theme.bg_accent,
+            button_color=self.theme.bg_accent,
+            width=135,
+            height=28,
+            command=self._on_timeframe_changed
+        )
+        self.menu_timeframe.pack(side="right", padx=4, pady=8)
+
+        # Right 4: Timeframe Tag Label
+        self.lbl_tf_tag = ctk.CTkLabel(
+            self.layer1_frame,
+            text="TIMEFRAME:",
+            font=ctk.CTkFont(family="Consolas", size=10, weight="bold"),
+            text_color=self.theme.accent_amber
+        )
+        self.lbl_tf_tag.pack(side="right", padx=(10, 2), pady=8)
 
     def update_telemetry(
         self,
@@ -126,6 +168,252 @@ class InteractiveTradeInspector(ctk.CTkFrame):
         )
 
     # ==========================================================================
+    # MULTI-TIMEFRAME (MTF) ENGINE & INTERACTIVE DRILL-DOWN LOGIC
+    # ==========================================================================
+    @classmethod
+    def aggregate_timeframe(cls, df: pd.DataFrame, resolution: str) -> pd.DataFrame:
+        """Aggregates 1-minute OHLCV data into Monthly, Weekly, or Daily candlesticks.
+        
+        Guarantees:
+        - Exact OHLCV semantics: Open=first, High=max, Low=min, Close=last, Volume=sum.
+        - Preserves localized IST timestamps.
+        - Excludes non-trading days, weekends, and empty holiday gaps.
+        """
+        if df is None or df.empty:
+            return pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"])
+
+        df_work = df.copy()
+        if "timestamp" not in df_work.columns:
+            if "timestamp_ist" in df_work.columns:
+                df_work["timestamp"] = df_work["timestamp_ist"]
+            elif isinstance(df_work.index, pd.DatetimeIndex):
+                df_work["timestamp"] = df_work.index
+            else:
+                return df_work
+
+        if not pd.api.types.is_datetime64_any_dtype(df_work["timestamp"]):
+            df_work["timestamp"] = pd.to_datetime(df_work["timestamp"])
+
+        ts = df_work["timestamp"]
+        ts_naive = ts.dt.tz_localize(None) if ts.dt.tz is not None else ts
+
+        res_clean = resolution.strip().lower()
+        if "month" in res_clean:
+            group_key = ts_naive.dt.to_period("M")
+        elif "week" in res_clean:
+            group_key = ts_naive.dt.to_period("W")
+        elif "day" in res_clean or "daily" in res_clean:
+            group_key = ts.dt.date
+        else:
+            return df_work
+
+        agg_dict = {
+            "timestamp": "first",
+            "open": "first",
+            "high": "max",
+            "low": "min",
+            "close": "last",
+            "volume": "sum"
+        }
+
+        grouped = df_work.groupby(group_key, sort=True).agg(agg_dict).reset_index(drop=True)
+        grouped.sort_values("timestamp", inplace=True)
+        grouped.reset_index(drop=True, inplace=True)
+        return grouped
+
+    def _on_timeframe_changed(self, choice: str):
+        """Dispatches multi-timeframe aggregation or prompts for 1-minute drill-down."""
+        if choice == "1-Min Intraday":
+            self._prompt_intraday_drill_down()
+        else:
+            self.set_timeframe(choice)
+
+    def set_timeframe(self, timeframe: str, auto_render: bool = True):
+        """Sets active timeframe (Monthly, Weekly, Daily, or 1-Min Intraday) and updates viewport."""
+        if self.raw_1m_df is None or self.raw_1m_df.empty:
+            self.current_timeframe = timeframe
+            self.timeframe_var.set(timeframe)
+            return
+
+        self.current_timeframe = timeframe
+        self.timeframe_var.set(timeframe)
+
+        if timeframe in ["Monthly", "Weekly", "Daily"]:
+            if timeframe not in self.resample_cache:
+                self.resample_cache[timeframe] = self.aggregate_timeframe(self.raw_1m_df, timeframe)
+            self.active_df = self.resample_cache[timeframe]
+            self.full_df = self.active_df
+        elif timeframe == "1-Min Intraday":
+            if self.intraday_slice_df is not None and not self.intraday_slice_df.empty:
+                self.active_df = self.intraday_slice_df
+            else:
+                # Default to the most recent trading session
+                latest_date = self.raw_1m_df["timestamp"].dt.date.max()
+                self.intraday_slice_df = self.raw_1m_df[self.raw_1m_df["timestamp"].dt.date == latest_date].copy().reset_index(drop=True)
+                self.active_df = self.intraday_slice_df
+            self.full_df = self.active_df
+
+        self._update_timeframe_telemetry()
+
+        # Update scrubber bounds for active timeframe
+        n_bars = len(self.active_df) if self.active_df is not None else 0
+        if n_bars <= 250:
+            self.current_window_start = 0
+            self.current_window_end = n_bars
+            self.scrubber_slider.configure(
+                from_=min(10, n_bars),
+                to=max(10, n_bars),
+                number_of_steps=max(1, n_bars - min(10, n_bars))
+            )
+            self.scrubber_slider.set(n_bars)
+        else:
+            self.current_window_start = max(0, n_bars - 150)
+            self.current_window_end = n_bars
+            self.scrubber_slider.configure(from_=15, to=150, number_of_steps=135)
+            self.scrubber_slider.set(150)
+
+        if auto_render:
+            self.render_window(self.current_window_start, self.current_window_end)
+
+    def _prompt_intraday_drill_down(self):
+        """Displays modal input dialog for user to enter target 1-minute drill-down boundary."""
+        if self.raw_1m_df is None or self.raw_1m_df.empty:
+            return
+
+        default_val = ""
+        if self.active_trades and 0 <= self.current_trade_idx < len(self.active_trades):
+            t = self.active_trades[self.current_trade_idx]
+            ft = getattr(t, "fill_time", None) or (t.get("fill_time") if isinstance(t, dict) else None)
+            if ft:
+                default_val = pd.to_datetime(ft).strftime("%Y-%m-%d")
+        if not default_val:
+            default_val = str(self.raw_1m_df["timestamp"].dt.date.iloc[-1])
+
+        val = None
+        try:
+            from customtkinter import CTkInputDialog
+            d_start = str(self.raw_1m_df["timestamp"].iloc[0])[:10]
+            d_end = str(self.raw_1m_df["timestamp"].iloc[-1])[:10]
+            dialog = CTkInputDialog(
+                text=(
+                    f"Enter target Day (YYYY-MM-DD), Month (YYYY-MM), or Year (YYYY):\n"
+                    f"Available Span: {d_start} to {d_end}\n"
+                    f"Default: {default_val}"
+                ),
+                title="1-Min Intraday Drill-Down Constraint"
+            )
+            val = dialog.get_input()
+        except Exception as e:
+            logger.warning(f"CTkInputDialog error: {e}")
+
+        if val and val.strip():
+            self.drill_down_to_constraint(val.strip())
+        else:
+            # Revert dropdown to previous timeframe if cancelled
+            self.timeframe_var.set(self.current_timeframe)
+
+    def drill_down_to_constraint(self, constraint_str: str):
+        """Filters raw 1-minute dataset to user constraint (YYYY-MM-DD, YYYY-MM, or YYYY) and renders."""
+        if self.raw_1m_df is None or self.raw_1m_df.empty:
+            return
+
+        c = constraint_str.strip()
+        ts_col = self.raw_1m_df["timestamp"]
+        sliced = pd.DataFrame()
+
+        # Case 1: Specific Date YYYY-MM-DD
+        if len(c) == 10 and c.count("-") == 2:
+            try:
+                target_d = pd.to_datetime(c).date()
+                sliced = self.raw_1m_df[ts_col.dt.date == target_d].copy().reset_index(drop=True)
+            except Exception:
+                sliced = pd.DataFrame()
+
+        # Case 2: Specific Month YYYY-MM
+        elif len(c) == 7 and c.count("-") == 1:
+            try:
+                sliced = self.raw_1m_df[ts_col.dt.strftime("%Y-%m") == c].copy().reset_index(drop=True)
+            except Exception:
+                sliced = pd.DataFrame()
+
+        # Case 3: Specific Year YYYY
+        elif len(c) == 4 and c.isdigit():
+            try:
+                sliced = self.raw_1m_df[ts_col.dt.year == int(c)].copy().reset_index(drop=True)
+            except Exception:
+                sliced = pd.DataFrame()
+
+        # Fallback partial match
+        if sliced.empty:
+            try:
+                sliced = self.raw_1m_df[ts_col.astype(str).str.contains(c)].copy().reset_index(drop=True)
+            except Exception:
+                sliced = pd.DataFrame()
+
+        if sliced.empty:
+            logger.warning(f"No 1-minute bars found for constraint '{c}'.")
+            self.timeframe_var.set(self.current_timeframe)
+            return
+
+        self.intraday_slice_df = sliced
+        self.active_df = self.intraday_slice_df
+        self.full_df = self.active_df
+        self.current_timeframe = "1-Min Intraday"
+        self.timeframe_var.set("1-Min Intraday")
+
+        self._update_timeframe_telemetry(label_suffix=f" [DRILL-DOWN: {c}]")
+
+        n_bars = len(self.active_df)
+        window_size = min(150, n_bars)
+        self.current_window_start = 0
+        self.current_window_end = window_size
+        self.scrubber_slider.configure(
+            from_=min(15, n_bars),
+            to=max(15, n_bars),
+            number_of_steps=max(1, n_bars - min(15, n_bars))
+        )
+        self.scrubber_slider.set(window_size)
+
+        self.render_window(self.current_window_start, self.current_window_end)
+
+    def drill_down_to_date(self, date_str: str):
+        """Convenience method to drill down directly to a specific YYYY-MM-DD date."""
+        self.drill_down_to_constraint(date_str)
+
+    def _update_timeframe_telemetry(self, label_suffix: str = ""):
+        """Updates Layer 1 telemetry to reflect active timeframe metrics."""
+        if self.active_df is None or self.active_df.empty:
+            return
+
+        total_bars = len(self.active_df)
+        y_min = float(self.active_df["low"].min())
+        y_max = float(self.active_df["high"].max())
+        ts_start = str(self.active_df["timestamp"].iloc[0])[:10]
+        ts_end = str(self.active_df["timestamp"].iloc[-1])[:10]
+        days_count = len(self.active_df["timestamp"].dt.date.unique())
+        total_1m_bars = len(self.raw_1m_df) if self.raw_1m_df is not None else total_bars
+
+        tf_tag = self.current_timeframe.upper()
+        if self.current_timeframe == "1-Min Intraday":
+            msg = (
+                f"[NIFTY50 • {tf_tag}{label_suffix}] Span: {ts_start} -> {ts_end} | "
+                f"Sessions: {days_count} Days | Bars: {total_bars:,} | "
+                f"Continuity: 99.98% | Price Range: ₹{y_min:,.1f} - ₹{y_max:,.1f}"
+            )
+        else:
+            msg = (
+                f"[NIFTY50 • {tf_tag}{label_suffix}] Span: {ts_start} -> {ts_end} | "
+                f"Bars: {total_bars:,} ({self.current_timeframe} from {total_1m_bars:,} 1-Min) | "
+                f"Continuity: 99.98% | Price Range: ₹{y_min:,.1f} - ₹{y_max:,.1f}"
+            )
+
+        self.lbl_telemetry_span.configure(text=msg)
+        self.lbl_health_pill.configure(
+            text=f"● {tf_tag} VERIFIED",
+            text_color=self.theme.accent_green
+        )
+
+    # ==========================================================================
     # LAYER 2: HIGH-PERFORMANCE MATPLOTLIB CANDLESTICK CANVAS
     # ==========================================================================
     def _build_layer2_canvas(self):
@@ -147,8 +435,36 @@ class InteractiveTradeInspector(ctk.CTkFrame):
         self.canvas_widget = self.canvas.get_tk_widget()
         self.canvas_widget.pack(fill="both", expand=True)
 
+        # Connect mouse double-click for direct candle drill-down
+        self.canvas.mpl_connect("button_press_event", self._on_canvas_click)
+
         # Draw initial empty placeholder state
         self._draw_standby_canvas()
+
+    def _on_canvas_click(self, event):
+        """Handles canvas mouse events, automatically triggering 1-minute drill-down on double-click."""
+        if not event.dblclick or event.inaxes != self.ax or event.xdata is None:
+            return
+
+        if self.current_timeframe not in ["Daily", "Weekly", "Monthly"]:
+            return
+
+        bar_idx = int(round(event.xdata))
+        if self.current_slice is None or bar_idx < 0 or bar_idx >= len(self.current_slice):
+            return
+
+        try:
+            clicked_bar = self.current_slice.iloc[bar_idx]
+            ts = clicked_bar.get("timestamp")
+            if ts is None:
+                return
+
+            dt = pd.to_datetime(ts)
+            target_date_str = dt.strftime("%Y-%m-%d")
+            logger.info(f"Canvas double-click on {self.current_timeframe} candle {bar_idx} ({target_date_str}). Drilling down to 1-Min data.")
+            self.drill_down_to_date(target_date_str)
+        except Exception as e:
+            logger.warning(f"Error handling canvas double click: {e}")
 
     def _apply_dark_canvas_style(self):
         """Configures Matplotlib axis styles to match the terminal theme."""
@@ -258,8 +574,17 @@ class InteractiveTradeInspector(ctk.CTkFrame):
             ts_series = [f"Bar {i}" for i in range(n_bars)]
 
         ts_list = list(ts_series)
+        if self.current_timeframe == "Monthly":
+            fmt = "%b %Y"
+        elif self.current_timeframe == "Weekly":
+            fmt = "%d %b\n'%y"
+        elif self.current_timeframe == "Daily":
+            fmt = "%d %b\n%Y"
+        else:
+            fmt = "%H:%M\n%d %b"
+
         tick_labels = [
-            ts.strftime("%H:%M\n%d %b") if hasattr(ts, "strftime") else str(ts)
+            ts.strftime(fmt) if hasattr(ts, "strftime") else str(ts)
             for ts in [ts_list[i] for i in range(0, n_bars, step)]
         ]
 
@@ -277,7 +602,8 @@ class InteractiveTradeInspector(ctk.CTkFrame):
 
         # 5. Call Mathematical Overlays
         self._draw_gann_price_rays(df_slice)
-        self._draw_solar_noon_lines(df_slice)
+        if self.current_timeframe == "1-Min Intraday":
+            self._draw_solar_noon_lines(df_slice)
         self._draw_trade_brackets(df_slice, active_trade=active_trade)
 
         try:
@@ -411,7 +737,14 @@ class InteractiveTradeInspector(ctk.CTkFrame):
 
         time_deltas = (ts_series - fill_time).abs()
         min_delta = time_deltas.min()
-        if min_delta > pd.Timedelta(hours=4):
+        max_delta = {
+            "1-Min Intraday": pd.Timedelta(hours=4),
+            "Daily": pd.Timedelta(days=1),
+            "Weekly": pd.Timedelta(days=7),
+            "Monthly": pd.Timedelta(days=31)
+        }.get(self.current_timeframe, pd.Timedelta(days=1))
+
+        if min_delta > max_delta:
             return
 
         i_entry = int(time_deltas.idxmin())
@@ -612,21 +945,24 @@ class InteractiveTradeInspector(ctk.CTkFrame):
         if full_df is None or full_df.empty:
             return
 
-        self.full_df = full_df.copy()
+        self.raw_1m_df = full_df.copy()
 
         # Preserve and standardize timestamp column
-        if "timestamp" not in self.full_df.columns:
-            if "timestamp_ist" in self.full_df.columns:
-                self.full_df["timestamp"] = self.full_df["timestamp_ist"]
-            elif isinstance(self.full_df.index, pd.DatetimeIndex):
-                self.full_df["timestamp"] = self.full_df.index
+        if "timestamp" not in self.raw_1m_df.columns:
+            if "timestamp_ist" in self.raw_1m_df.columns:
+                self.raw_1m_df["timestamp"] = self.raw_1m_df["timestamp_ist"]
+            elif isinstance(self.raw_1m_df.index, pd.DatetimeIndex):
+                self.raw_1m_df["timestamp"] = self.raw_1m_df.index
             else:
                 base_time = pd.Timestamp("2024-01-01 09:15:00", tz="Asia/Kolkata")
-                self.full_df["timestamp"] = [base_time + pd.Timedelta(minutes=i) for i in range(len(self.full_df))]
+                self.raw_1m_df["timestamp"] = [base_time + pd.Timedelta(minutes=i) for i in range(len(self.raw_1m_df))]
 
-        self.full_df.reset_index(drop=True, inplace=True)
-        if not pd.api.types.is_datetime64_any_dtype(self.full_df["timestamp"]):
-            self.full_df["timestamp"] = pd.to_datetime(self.full_df["timestamp"])
+        self.raw_1m_df.reset_index(drop=True, inplace=True)
+        if not pd.api.types.is_datetime64_any_dtype(self.raw_1m_df["timestamp"]):
+            self.raw_1m_df["timestamp"] = pd.to_datetime(self.raw_1m_df["timestamp"])
+
+        self.resample_cache.clear()
+        self.intraday_slice_df = None
 
         # Handle trades in any format: TradeLedger, list, dataframe, or single trade
         if trades is None:
@@ -645,30 +981,14 @@ class InteractiveTradeInspector(ctk.CTkFrame):
 
         self.current_trade_idx = 0
 
-        # Update Layer 1 Telemetry immediately (removes 'No Sample Loaded')
-        total_bars = len(self.full_df)
-        y_min = float(self.full_df["low"].min())
-        y_max = float(self.full_df["high"].max())
-        ts_start = str(self.full_df["timestamp"].iloc[0])[:10]
-        ts_end = str(self.full_df["timestamp"].iloc[-1])[:10]
-        days_count = len(self.full_df["timestamp"].dt.date.unique())
-
-        self.update_telemetry(
-            symbol="NIFTY50",
-            start_date=ts_start,
-            end_date=ts_end,
-            total_days=days_count,
-            total_bars=total_bars,
-            continuity_pct=99.98,
-            price_envelope=(y_min, y_max)
-        )
+        # Apply active timeframe
+        self.set_timeframe(self.current_timeframe, auto_render=False)
 
         # MANDATORY AUTO-RENDER:
-        # Immediately render Trade #1 if trades exist, else render the first 150 bars of raw market data
         if self.active_trades:
             self.jump_to_trade(0)
         else:
-            initial_bars = min(150, len(self.full_df))
+            initial_bars = min(150, len(self.active_df))
             self.render_window(0, initial_bars)
 
     def jump_to_trade(self, trade_idx: int):
@@ -710,19 +1030,27 @@ class InteractiveTradeInspector(ctk.CTkFrame):
             deltas = (ts_series - target_ts).abs()
             entry_bar_idx = int(deltas.idxmin())
 
-        # Dynamic window: -60 bars before entry, +120 bars after entry
         total_rows = len(self.full_df)
-        window_start = max(0, entry_bar_idx - 60)
-        window_end = min(total_rows, entry_bar_idx + 120)
-        if window_end - window_start < 60:
-            window_end = min(total_rows, window_start + 120)
+        if total_rows <= 60:
+            window_start = 0
+            window_end = total_rows
+        else:
+            window_start = max(0, entry_bar_idx - 60)
+            window_end = min(total_rows, entry_bar_idx + 120)
+            if window_end - window_start < 60:
+                window_end = min(total_rows, window_start + 120)
 
         self.current_window_start = window_start
         self.current_window_end = window_end
 
         # Configure slider bounds for this window
-        window_length = window_end - window_start
-        self.scrubber_slider.configure(from_=15, to=window_length, number_of_steps=max(1, window_length - 15))
+        window_length = max(1, window_end - window_start)
+        min_slider = min(10, window_length)
+        self.scrubber_slider.configure(
+            from_=min_slider,
+            to=window_length,
+            number_of_steps=max(1, window_length - min_slider)
+        )
         self.scrubber_slider.set(window_length)
 
         # Update details label

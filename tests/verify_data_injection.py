@@ -98,7 +98,7 @@ def test_data_injection_and_auto_render():
     assert "No Sample Loaded" not in post_telemetry, "Telemetry should NO LONGER show 'No Sample Loaded'"
     assert "NIFTY50" in post_telemetry, "Telemetry should contain 'NIFTY50'"
     assert "2023-01" in post_telemetry, "Telemetry should contain '2023-01'"
-    assert f"Bars: {len(df_month):,}" in post_telemetry, f"Telemetry should display 'Bars: {len(df_month):,}'"
+    assert f"{len(df_month):,}" in post_telemetry, f"Telemetry should display '{len(df_month):,}'"
 
     # 7. Assert Canvas Auto-Renders Without Human Clicks
     assert inspector.current_slice is not None, "current_slice must be populated upon load_data"
@@ -118,7 +118,7 @@ def test_data_injection_and_auto_render():
     inspector_empty_trades.load_data(df_month, [])
     assert "No Sample Loaded" not in inspector_empty_trades.lbl_telemetry_span.cget("text")
     assert inspector_empty_trades.current_slice is not None
-    assert len(inspector_empty_trades.current_slice) == min(150, len(df_month))
+    assert len(inspector_empty_trades.current_slice) == min(150, len(inspector_empty_trades.active_df))
     print(f"[*] Zero-trades fallback rendered {len(inspector_empty_trades.current_slice)} bars directly.")
 
     # 9. Verify Workstation Window & Dashboard Wiring

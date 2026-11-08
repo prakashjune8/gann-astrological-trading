@@ -63,6 +63,10 @@ class BacktestQuantWorkstationWindow(ctk.CTkToplevel):
         self.dashboard_view = BacktestDashboardView(self, theme=self.theme)
         self.dashboard_view.pack(fill="both", expand=True)
 
+        # Expose direct handles for Trade & Method Inspector
+        self.trade_inspector = getattr(self.dashboard_view, "trade_inspector", None) or getattr(self.dashboard_view, "inspector_view", None)
+        self.inspector_view = self.trade_inspector
+
         # Handle Clean Lifecycle Protocol
         self.protocol("WM_DELETE_WINDOW", self._on_window_close)
 

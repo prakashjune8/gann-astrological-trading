@@ -191,6 +191,7 @@ class BacktestDashboardView(ctk.CTkFrame):
         # Tab 1: Interactive Candlestick & Trade Inspector
         self.tab_inspector = self.tabview.add("🕯 Trade & Method Inspector")
         self.inspector_view = InteractiveTradeInspector(self.tab_inspector, theme=self.theme)
+        self.trade_inspector = self.inspector_view  # Canonical alias
         self.inspector_view.pack(fill="both", expand=True, padx=4, pady=4)
 
         # Tab 2: Equity Curve & Drawdown
@@ -228,8 +229,18 @@ class BacktestDashboardView(ctk.CTkFrame):
         self.ledger_box.configure(state="disabled")
 
         # 4. Ingest trades and historical data into Interactive Trade & Method Inspector
-        if hasattr(self, "inspector_view"):
-            trades = (self.oos_ledger.trades if self.oos_ledger else []) or (self.is_ledger.trades if self.is_ledger else [])
+        inspector = getattr(self, "trade_inspector", None) or getattr(self, "inspector_view", None)
+        if inspector is not None:
+            all_trades = []
+            if self.is_ledger and hasattr(self.is_ledger, "trades"):
+                all_trades.extend(self.is_ledger.trades)
+            if self.oos_ledger and hasattr(self.oos_ledger, "trades"):
+                all_trades.extend(self.oos_ledger.trades)
+            if not all_trades:
+                df_candidate = locals().get("df_master", None) or getattr(self, "df_master", None)
+                if df_candidate is not None and not getattr(df_candidate, "empty", True):
+                    all_trades = df_candidate
+
             raw_df = getattr(self.runner, "last_loaded_df", None)
             sym = self.symbol_var.get()
             if raw_df is None or raw_df.empty:
@@ -252,7 +263,7 @@ class BacktestDashboardView(ctk.CTkFrame):
                     raw_df = None
 
             if raw_df is not None and not raw_df.empty:
-                self.inspector_view.load_trades_and_data(raw_df, trades)
+                inspector.load_data(raw_df, all_trades)
 
     def _load_initial_visuals(self):
         """Loads and embeds any pre-computed charts from reports/figures/."""
@@ -420,8 +431,18 @@ class BacktestDashboardView(ctk.CTkFrame):
         self.ledger_box.configure(state="disabled")
 
         # 4. Ingest trades and historical data into Interactive Trade & Method Inspector
-        if hasattr(self, "inspector_view"):
-            trades = (self.oos_ledger.trades if self.oos_ledger else []) or (self.is_ledger.trades if self.is_ledger else [])
+        inspector = getattr(self, "trade_inspector", None) or getattr(self, "inspector_view", None)
+        if inspector is not None:
+            all_trades = []
+            if self.is_ledger and hasattr(self.is_ledger, "trades"):
+                all_trades.extend(self.is_ledger.trades)
+            if self.oos_ledger and hasattr(self.oos_ledger, "trades"):
+                all_trades.extend(self.oos_ledger.trades)
+            if not all_trades:
+                df_candidate = locals().get("df_master", None) or getattr(self, "df_master", None)
+                if df_candidate is not None and not getattr(df_candidate, "empty", True):
+                    all_trades = df_candidate
+
             raw_df = getattr(self.runner, "last_loaded_df", None)
             sym = self.symbol_var.get()
             if raw_df is None or raw_df.empty:
@@ -444,7 +465,7 @@ class BacktestDashboardView(ctk.CTkFrame):
                     raw_df = None
 
             if raw_df is not None and not raw_df.empty:
-                self.inspector_view.load_trades_and_data(raw_df, trades)
+                inspector.load_data(raw_df, all_trades)
 
     def _on_simulation_error(self, err_msg: str):
         """Invoked if the background worker encounters an exception."""

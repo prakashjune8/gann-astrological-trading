@@ -166,13 +166,22 @@ class ParquetDataLoader:
                 )
 
     def get_partition_path(self, symbol: str, year: int, month: int) -> Path:
-        """Returns path for partitioned monthly parquet file."""
+        """Returns path for partitioned monthly parquet file, checking standard and backtest_vault locations."""
         self.validate_instrument(symbol)
         clean_symbol = symbol.strip().upper().replace("^", "").replace("=F", "")
         month_str = f"{month:02d}"
         dir_path = self.base_dir / f"instrument={clean_symbol}" / f"year={year}"
         dir_path.mkdir(parents=True, exist_ok=True)
-        return dir_path / f"month={month_str}.parquet"
+        primary_path = dir_path / f"month={month_str}.parquet"
+        if primary_path.is_file():
+            return primary_path
+
+        # Check fallback in data/backtest_vault/{clean_symbol}/{year}/{year}_{month_str}.parquet
+        vault_path = self.base_dir.parent / "backtest_vault" / clean_symbol / str(year) / f"{year}_{month_str}.parquet"
+        if vault_path.is_file():
+            return vault_path
+
+        return primary_path
 
     def write_monthly_slice(self, df_1m: pd.DataFrame, symbol: str, year: int, month: int) -> Path:
         """Writes 1-minute OHLCV data to a monthly parquet file with zstd compression."""

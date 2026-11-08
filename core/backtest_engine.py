@@ -526,6 +526,12 @@ class TradeLedger:
     """Comprehensive structured trade ledger with performance aggregation."""
     trades: List[ExecutedTrade] = field(default_factory=list)
 
+    def __iter__(self):
+        return iter(self.trades)
+
+    def __len__(self) -> int:
+        return len(self.trades)
+
     def append(self, trade: ExecutedTrade) -> None:
         self.trades.append(trade)
 

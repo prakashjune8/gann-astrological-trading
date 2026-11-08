@@ -603,11 +603,11 @@ class InteractiveTradeInspector(ctk.CTkFrame):
     # ==========================================================================
     # DATA INGESTION & TRADE STEPPER
     # ==========================================================================
-    def load_data(self, full_df: pd.DataFrame, trades: Optional[List[Any]] = None):
-        """Standard public alias for load_trades_and_data."""
-        self.load_trades_and_data(full_df, trades or [])
+    def load_data(self, full_df: pd.DataFrame, trades: Optional[Any] = None):
+        """Standard public alias for load_trades_and_data, accepting DataFrame and TradeLedger."""
+        self.load_trades_and_data(full_df, trades)
 
-    def load_trades_and_data(self, full_df: pd.DataFrame, trades: Optional[List[Any]] = None):
+    def load_trades_and_data(self, full_df: pd.DataFrame, trades: Optional[Any] = None):
         """Ingests historical OHLCV data and executed trades, auto-rendering immediately."""
         if full_df is None or full_df.empty:
             return
@@ -628,10 +628,24 @@ class InteractiveTradeInspector(ctk.CTkFrame):
         if not pd.api.types.is_datetime64_any_dtype(self.full_df["timestamp"]):
             self.full_df["timestamp"] = pd.to_datetime(self.full_df["timestamp"])
 
-        self.active_trades = list(trades or [])
+        # Handle trades in any format: TradeLedger, list, dataframe, or single trade
+        if trades is None:
+            self.active_trades = []
+        elif hasattr(trades, "trades"):  # TradeLedger instance
+            self.active_trades = list(trades.trades)
+        elif isinstance(trades, pd.DataFrame):
+            self.active_trades = trades.to_dict("records")
+        elif isinstance(trades, (list, tuple)):
+            self.active_trades = list(trades)
+        else:
+            try:
+                self.active_trades = list(trades)
+            except Exception:
+                self.active_trades = [trades]
+
         self.current_trade_idx = 0
 
-        # Update Layer 1 Telemetry
+        # Update Layer 1 Telemetry immediately (removes 'No Sample Loaded')
         total_bars = len(self.full_df)
         y_min = float(self.full_df["low"].min())
         y_max = float(self.full_df["high"].max())

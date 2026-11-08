@@ -62,8 +62,16 @@ class LocalDataVaultManager:
         if base_vault_dir:
             self.base_dir = Path(base_vault_dir)
         else:
-            # Anchor to workspace root data/backtest_vault
-            root_dir = Path(__file__).resolve().parent.parent
+            # Anchor permanently on disk across dev and frozen single-file PyInstaller mode
+            if getattr(sys, "frozen", False):
+                exe_dir = Path(sys.executable).resolve().parent
+                if (exe_dir.parent / "data").exists():
+                    root_dir = exe_dir.parent
+                else:
+                    root_dir = exe_dir
+            else:
+                root_dir = Path(__file__).resolve().parent.parent
+
             self.base_dir = root_dir / "data" / "backtest_vault"
 
         self.base_dir.mkdir(parents=True, exist_ok=True)

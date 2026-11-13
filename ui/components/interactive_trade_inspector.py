@@ -62,9 +62,12 @@ class InteractiveTradeInspector(ctk.CTkFrame):
         self.is_playing: bool = False
         self.play_job: Optional[str] = None
 
-        # Continuous Streaming Playback Engine State
+        # Continuous River Flow Engine State (2-Day Floating FIFO Window)
         self.is_streaming: bool = False
         self.stream_job: Optional[str] = None
+        self.river_window_bars: int = 750  # Exactly 2 trading days (375 bars/session * 2)
+        self.river_cursor: int = 750
+        self.river_total_bars: int = 0
         self.stream_day_groups: List[Tuple[Any, pd.DataFrame]] = []
         self.stream_day_idx: int = 0
         self.stream_current_day_df: Optional[pd.DataFrame] = None
@@ -94,10 +97,10 @@ class InteractiveTradeInspector(ctk.CTkFrame):
         self.stream_banner.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 2))
         self.stream_banner.grid_propagate(False)
 
-        # Dynamic Streaming Hierarchy Label
+        # Dynamic Streaming River Flow Label
         self.lbl_stream_hierarchy = ctk.CTkLabel(
             self.stream_banner,
-            text="[CONTINUOUS STREAM ENGINE] Ready: Month -> Week -> Day -> 1-Min Stream",
+            text="[CONTINUOUS 2-DAY RIVER FLOW] Streaming 1-Min Data Across a 2-Day Fixed Viewport",
             font=ctk.CTkFont(family="Consolas", size=10, weight="bold"),
             text_color="#00f0ff"
         )
@@ -106,7 +109,7 @@ class InteractiveTradeInspector(ctk.CTkFrame):
         # Day Counter Badge
         self.lbl_stream_day_badge = ctk.CTkLabel(
             self.stream_banner,
-            text="DAY 0/0",
+            text="RIVER 2-DAY FLOW",
             font=ctk.CTkFont(family="Consolas", size=9, weight="bold"),
             text_color=self.theme.accent_amber
         )
@@ -630,7 +633,6 @@ class InteractiveTradeInspector(ctk.CTkFrame):
 
         self.ax.set_xticks(tick_locs)
         self.ax.set_xticklabels(tick_labels, fontsize=8, color=self.theme.text_secondary)
-        self.ax.set_xlim(-0.8, n_bars - 0.2)
 
         # 4. Y-Axis Bounds with breathing room
         y_min = float(np.min(lows))
@@ -639,6 +641,41 @@ class InteractiveTradeInspector(ctk.CTkFrame):
         self.ax.set_ylim(y_min - padding, y_max + padding)
         self.ax.yaxis.tick_right()
         self.ax.yaxis.set_label_position("right")
+
+        # 5. Day Boundary Marker (moving river transitions)
+        if "timestamp" in df_slice.columns and n_bars > 1:
+            try:
+                dates = pd.to_datetime(df_slice["timestamp"]).dt.date
+                day_splits = np.where(dates.values[1:] != dates.values[:-1])[0] + 1
+                for split_idx in day_splits:
+                    split_date = dates.iloc[split_idx]
+                    self.ax.axvline(
+                        split_idx - 0.5,
+                        color="#818cf8",
+                        linestyle="--",
+                        linewidth=1.2,
+                        alpha=0.75,
+                        zorder=3
+                    )
+                    self.ax.text(
+                        split_idx,
+                        y_max,
+                        f" ⚡ {split_date.strftime('%d %b %Y')} OPEN",
+                        color="#a5b4fc",
+                        fontsize=8,
+                        fontweight="bold",
+                        va="top",
+                        ha="left",
+                        zorder=4
+                    )
+            except Exception:
+                pass
+
+        # 6. Viewport Boundaries (Fixed Rectangular Frame for River Stream)
+        if self.is_streaming:
+            self.ax.set_xlim(-0.8, self.river_window_bars - 0.2)
+        else:
+            self.ax.set_xlim(-0.8, n_bars - 0.2)
 
         # 5. Call Mathematical Overlays
         self._draw_gann_price_rays(df_slice)
@@ -940,14 +977,14 @@ class InteractiveTradeInspector(ctk.CTkFrame):
         )
         self.btn_play_pause.pack(side="left", padx=(0, 4))
 
-        # Continuous Stream 3-Year Backtest Button
+        # Continuous 2-Day River Flow Stream Button
         self.btn_stream = ctk.CTkButton(
             self.nav_strip,
-            text="▶ Stream 3-Year Backtest",
+            text="🌊 River Flow (2-Day)",
             font=ctk.CTkFont(size=11, weight="bold"),
-            fg_color="#7c3aed",
-            hover_color="#6d28d9",
-            width=182, height=28,
+            fg_color="#0d9488",
+            hover_color="#0f766e",
+            width=175, height=28,
             command=self._on_toggle_continuous_stream
         )
         self.btn_stream.pack(side="left", padx=(0, 10))
@@ -1033,13 +1070,14 @@ class InteractiveTradeInspector(ctk.CTkFrame):
 
         self.current_trade_idx = 0
 
-        # Prepare continuous streaming day partitions
+        # Prepare continuous 2-day river streaming attributes
+        self.river_total_bars = len(self.raw_1m_df)
+        self.river_cursor = min(self.river_window_bars, self.river_total_bars)
         self._prepare_streaming_day_groups()
         self.stream_day_idx = 0
         self.stream_current_day_df = None
         self.stream_bar_idx = 0
-        if self.stream_day_groups:
-            self.lbl_stream_day_badge.configure(text=f"DAY 1/{len(self.stream_day_groups)}")
+        self.lbl_stream_day_badge.configure(text="RIVER 2-DAY FLOW")
 
         # Apply active timeframe
         self.set_timeframe(self.current_timeframe, auto_render=False)
@@ -1162,12 +1200,16 @@ class InteractiveTradeInspector(ctk.CTkFrame):
         """Scrubs window bar-by-bar, dynamically rendering the chart up to current minute."""
         offset = int(val)
 
-        # In continuous streaming mode, update current day's bar position
-        if self.is_streaming and self.stream_current_day_df is not None:
-            self.stream_bar_idx = offset
-            self._render_stream_slice(self.stream_bar_idx)
-            self._update_streaming_banner(self.stream_bar_idx)
-            return
+        # In continuous River Flow mode, scrub cursor across full multi-year data
+        if self.is_streaming or (self.current_timeframe == "1-Min Intraday" and self.river_total_bars > 0):
+            if self.raw_1m_df is not None and not self.raw_1m_df.empty:
+                self.river_cursor = max(min(self.river_window_bars, self.river_total_bars), min(offset, self.river_total_bars))
+                start_idx = max(0, self.river_cursor - self.river_window_bars)
+                slice_df = self.raw_1m_df.iloc[start_idx:self.river_cursor].copy().reset_index(drop=True)
+                self.current_slice = slice_df
+                self.draw_candlesticks(slice_df)
+                self._update_river_banner(slice_df, self.river_cursor)
+                return
 
         if self.full_df is None or self.full_df.empty:
             return
@@ -1294,14 +1336,14 @@ class InteractiveTradeInspector(ctk.CTkFrame):
         return day_df, hierarchy
 
     def _on_toggle_continuous_stream(self):
-        """Toggles continuous multi-year streaming playback engine."""
+        """Toggles continuous 2-day floating river stream playback engine."""
         if self.is_streaming:
             self._stop_continuous_stream()
         else:
             self._start_continuous_stream()
 
     def _start_continuous_stream(self):
-        """Launches infinite continuous day-by-day streaming loop."""
+        """Launches continuous 2-day floating river stream loop in fixed rectangular frame."""
         if self.raw_1m_df is None or self.raw_1m_df.empty:
             return
 
@@ -1310,20 +1352,34 @@ class InteractiveTradeInspector(ctk.CTkFrame):
             self._stop_playback()
 
         self.is_streaming = True
-        self.btn_stream.configure(text="⏸ Pause Stream", fg_color=self.theme.accent_amber)
+        self.river_total_bars = len(self.raw_1m_df)
+        self.btn_stream.configure(text="⏸ Pause River", fg_color=self.theme.accent_amber)
 
         # Ensure active timeframe is 1-Min Intraday
         self.current_timeframe = "1-Min Intraday"
         self.timeframe_var.set("1-Min Intraday")
+        self.lbl_health_pill.configure(
+            text="● RIVER FLOW ACTIVE",
+            text_color="#10b981"
+        )
 
-        # If starting fresh or previous day ended, load next day
-        if self.stream_current_day_df is None or self.stream_bar_idx >= len(self.stream_current_day_df):
-            self._load_next_stream_day()
+        # Initialize cursor to at least 2 days of bars if not already positioned
+        min_cursor = min(self.river_window_bars, self.river_total_bars)
+        if self.river_cursor < min_cursor or self.river_cursor >= self.river_total_bars:
+            self.river_cursor = min_cursor
 
-        self._step_continuous_stream()
+        # Configure Scrubber slider bounds for full multi-year range
+        self.scrubber_slider.configure(
+            from_=min_cursor,
+            to=self.river_total_bars,
+            number_of_steps=max(1, self.river_total_bars - min_cursor)
+        )
+        self.scrubber_slider.set(self.river_cursor)
+
+        self._step_river_stream()
 
     def _stop_continuous_stream(self):
-        """Pauses the continuous stream cleanly at the exact current minute bar."""
+        """Pauses the continuous river stream cleanly at the exact current minute bar."""
         self.is_streaming = False
         if self.stream_job is not None:
             try:
@@ -1332,146 +1388,128 @@ class InteractiveTradeInspector(ctk.CTkFrame):
                 pass
             self.stream_job = None
 
-        self.btn_stream.configure(text="▶ Stream 3-Year Backtest", fg_color="#7c3aed")
+        self.btn_stream.configure(text="🌊 River Flow (2-Day)", fg_color="#0d9488")
         self.lbl_health_pill.configure(
             text="● STREAM PAUSED",
             text_color=self.theme.text_muted
         )
 
-    def _load_next_stream_day(self):
-        """Flushes Matplotlib canvas memory, loads next day's 1-minute chunk, and resets bar counter."""
-        # 1. CRITICAL MEMORY FLUSH: Clear axes to prevent memory leaks across 1000s of days
-        self.ax.cla()
-        self._apply_dark_canvas_style()
-
-        # 2. Fetch next trading day from hierarchical iterator
-        day_df, hierarchy = self._get_next_trading_day_chunk()
-        if day_df.empty:
-            self._stop_continuous_stream()
-            return
-
-        self.stream_current_day_df = day_df
-        self.stream_current_hierarchy = hierarchy
-        self.stream_bar_idx = min(15, len(day_df))  # Initial seed bars for clean visual
-
-        # Set active dataframe to this day
-        self.intraday_slice_df = day_df
-        self.active_df = day_df
-        self.full_df = day_df
-        self.current_window_start = 0
-        self.current_window_end = len(day_df)
-
-        # Update Scrubber slider bounds to 0..len(day_df)
-        n_bars = len(day_df)
-        self.scrubber_slider.configure(
-            from_=min(15, n_bars),
-            to=n_bars,
-            number_of_steps=max(1, n_bars - min(15, n_bars))
-        )
-        self.scrubber_slider.set(self.stream_bar_idx)
-
-        # Update Streaming Telemetry & Badge
-        self._update_streaming_banner(self.stream_bar_idx)
-
-    def _step_continuous_stream(self):
-        """Timer callback advancing the stream by 1-minute increments."""
+    def _step_river_stream(self):
+        """Timer callback advancing the 2-day floating river stream by 1-minute increments."""
         if not self.is_streaming:
             return
 
-        if self.stream_current_day_df is None or self.stream_current_day_df.empty:
-            self._load_next_stream_day()
-            if self.stream_current_day_df is None:
-                return
-
-        total_day_bars = len(self.stream_current_day_df)
+        if self.raw_1m_df is None or self.raw_1m_df.empty:
+            self._stop_continuous_stream()
+            return
 
         # Speed multipliers
         speed = self.speed_var.get()
         if speed == "1x":
             step = 1
-            delay_ms = 220
+            delay_ms = 75   # Smooth, natural flowing stream
         elif speed == "5x":
             step = 4
-            delay_ms = 40
+            delay_ms = 35   # Brisk river current
         else:  # Max
             step = 15
-            delay_ms = 5
+            delay_ms = 8    # Rapid torrent
 
-        self.stream_bar_idx += step
+        self.river_cursor += step
 
-        # Check if trading day has completed (15:30 IST)
-        if self.stream_bar_idx >= total_day_bars:
-            # Render final state of day
-            self._render_stream_slice(total_day_bars)
-            self._update_streaming_banner(total_day_bars)
+        # Infinite loop wrap-around
+        if self.river_cursor > self.river_total_bars:
+            self.river_cursor = min(self.river_window_bars, self.river_total_bars)
 
-            # FLUSH MEMORY & LOAD NEXT TRADING DAY CHUNK
-            self._load_next_stream_day()
-
-            # Brief inter-day delay
-            inter_day_delay = 120 if speed == "1x" else (35 if speed == "5x" else 5)
-            self.stream_job = self.after(inter_day_delay, self._step_continuous_stream)
-            return
-
-        # Render current minute slice
-        self._render_stream_slice(self.stream_bar_idx)
-        self._update_streaming_banner(self.stream_bar_idx)
-        self.scrubber_slider.set(self.stream_bar_idx)
-
-        # Schedule next tick
-        self.stream_job = self.after(delay_ms, self._step_continuous_stream)
-
-    def _render_stream_slice(self, n_bars: int):
-        """Draws current day's candles from bar 0 up to n_bars."""
-        if self.stream_current_day_df is None or self.stream_current_day_df.empty:
-            return
-
-        n = max(5, min(n_bars, len(self.stream_current_day_df)))
-        slice_df = self.stream_current_day_df.iloc[:n].copy().reset_index(drop=True)
+        # Slice 2-day floating window
+        start_idx = max(0, self.river_cursor - self.river_window_bars)
+        slice_df = self.raw_1m_df.iloc[start_idx:self.river_cursor].copy().reset_index(drop=True)
         self.current_slice = slice_df
 
-        # Match active trade if one occurred today
+        # Match active trade if one occurs within visible 2-day window
         trade = None
-        if self.active_trades and 0 <= self.current_trade_idx < len(self.active_trades):
-            candidate_trd = self.active_trades[self.current_trade_idx]
-            ft = getattr(candidate_trd, "fill_time", None) or (candidate_trd.get("fill_time") if isinstance(candidate_trd, dict) else None)
-            if ft:
-                try:
-                    c_date = pd.to_datetime(ft).date()
-                    if c_date == self.stream_current_hierarchy.get("date"):
-                        trade = candidate_trd
-                except Exception:
-                    pass
+        if self.active_trades and not slice_df.empty:
+            t_start = slice_df["timestamp"].iloc[0]
+            t_end = slice_df["timestamp"].iloc[-1]
+            for candidate_trd in self.active_trades:
+                ft = getattr(candidate_trd, "fill_time", None) or (candidate_trd.get("fill_time") if isinstance(candidate_trd, dict) else None)
+                if ft:
+                    try:
+                        ft_ts = pd.to_datetime(ft)
+                        if ft_ts.tzinfo is None and t_start.tzinfo is not None:
+                            ft_ts = ft_ts.tz_localize(t_start.tzinfo)
+                        elif ft_ts.tzinfo is not None and t_start.tzinfo is None:
+                            ft_ts = ft_ts.tz_localize(None)
+                        if t_start <= ft_ts <= t_end:
+                            trade = candidate_trd
+                            break
+                    except Exception:
+                        pass
 
+        # Render floating river frame
         self.draw_candlesticks(slice_df, active_trade=trade)
 
-    def _update_streaming_banner(self, current_bar: int):
-        """Updates the streaming telemetry label to reflect the exact hierarchical state."""
-        h = getattr(self, "stream_current_hierarchy", {})
-        if not h:
+        # Update telemetry banner & scrubber
+        self._update_river_banner(slice_df, self.river_cursor)
+        self.scrubber_slider.set(self.river_cursor)
+
+        # Schedule next tick
+        self.stream_job = self.after(delay_ms, self._step_river_stream)
+
+    def _step_continuous_stream(self):
+        """Legacy alias forwarding to _step_river_stream."""
+        self._step_river_stream()
+
+    def _render_river_slice(self, slice_df: pd.DataFrame):
+        """Draws current 2-day river slice in fixed rectangular frame."""
+        self.draw_candlesticks(slice_df)
+
+    def _render_stream_slice(self, n_bars: int):
+        """Legacy compatibility wrapper."""
+        if self.raw_1m_df is not None:
+            start_idx = max(0, self.river_cursor - self.river_window_bars)
+            slice_df = self.raw_1m_df.iloc[start_idx:self.river_cursor].copy().reset_index(drop=True)
+            self.draw_candlesticks(slice_df)
+
+    def _update_river_banner(self, slice_df: pd.DataFrame, cursor: int):
+        """Updates the streaming telemetry banner to reflect the 2-day floating river state."""
+        if slice_df.empty:
             return
 
-        curr_time_str = ""
-        if self.stream_current_day_df is not None and not self.stream_current_day_df.empty:
-            idx = min(max(0, current_bar - 1), len(self.stream_current_day_df) - 1)
-            ts = self.stream_current_day_df["timestamp"].iloc[idx]
-            curr_time_str = f" | {ts.strftime('%H:%M')} IST"
+        t_first = slice_df["timestamp"].iloc[0]
+        t_last = slice_df["timestamp"].iloc[-1]
+        d_first = t_first.date()
+        d_last = t_last.date()
 
-        # Explicit format requested: [STREAMING] Year: 2020 | Month: Jan | Week: 1 | Day: Monday (2020-01-05)
-        text = (
-            f"[STREAMING] Year: {h['year']} | Month: {h['month_name']} | "
-            f"Week: {h['week_of_month']} | Day: {h['day_name']} ({h['date_str']}){curr_time_str} "
-            f"(Bar {current_bar}/{h.get('total_bars', 375)})"
+        pct = (cursor / max(1, self.river_total_bars)) * 100.0
+
+        # Hierarchical dates & times
+        date_span = (
+            f"{d_first.strftime('%d %b %Y')} ➔ {d_last.strftime('%d %b %Y')}"
+            if d_first != d_last
+            else d_first.strftime('%d %b %Y')
         )
-        self.lbl_stream_hierarchy.configure(text=text)
-        self.lbl_stream_day_badge.configure(text=f"DAY {h['day_index']}/{h['total_days']}")
+        inflow_str = f"{t_last.strftime('%d %b %Y %H:%M')} IST"
+
+        banner_text = (
+            f"[🌊 RIVER FLOW] 2-Day Viewport: {date_span} | "
+            f"Inflow: {inflow_str} | "
+            f"Window: {len(slice_df)} bars (2 Trading Days) | Stream: Bar {cursor:,}/{self.river_total_bars:,} ({pct:.1f}%)"
+        )
+        self.lbl_stream_hierarchy.configure(text=banner_text)
+        self.lbl_stream_day_badge.configure(text="RIVER 2-DAY FLOW")
 
         # Synchronize Layer 1 Telemetry
         self.lbl_telemetry_span.configure(
-            text=f"[STREAMING 3-YEAR BACKTEST] Day {h['day_index']} of {h['total_days']} | {h['date_str']} | {current_bar} bars"
+            text=f"[RIVER FLOW ACTIVE] 2-Day Viewport: {date_span} | Inflow: {inflow_str} | Sample: {self.river_total_bars:,} bars"
         )
         self.lbl_health_pill.configure(
-            text="● STREAMING ACTIVE",
-            text_color=self.theme.accent_amber
+            text="● RIVER FLOW ACTIVE",
+            text_color="#10b981"
         )
+
+    def _update_streaming_banner(self, current_bar: int):
+        """Legacy compatibility alias forwarding to _update_river_banner."""
+        if self.current_slice is not None:
+            self._update_river_banner(self.current_slice, self.river_cursor)
 

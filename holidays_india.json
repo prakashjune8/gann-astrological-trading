@@ -1,0 +1,425 @@
+{
+  "description": "NSE and MCX Indian Exchange Official Trading Holiday Calendar (2024-2027)",
+  "holidays": [
+    {
+      "date": "2024-01-22",
+      "holiday": "Special Holiday (Ayodhya Ram Mandir Pran Pratishtha)",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": false
+    },
+    {
+      "date": "2024-01-26",
+      "holiday": "Republic Day",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": true
+    },
+    {
+      "date": "2024-03-08",
+      "holiday": "Mahashivratri",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": false
+    },
+    {
+      "date": "2024-03-25",
+      "holiday": "Holi",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": false
+    },
+    {
+      "date": "2024-03-29",
+      "holiday": "Good Friday",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": true
+    },
+    {
+      "date": "2024-04-11",
+      "holiday": "Id-Ul-Fitr (Ramzan Id)",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": false
+    },
+    {
+      "date": "2024-04-17",
+      "holiday": "Shri Ram Navami",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": false
+    },
+    {
+      "date": "2024-05-01",
+      "holiday": "Maharashtra Day",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": false
+    },
+    {
+      "date": "2024-06-17",
+      "holiday": "Bakri Id / Eid ul-Adha",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": false
+    },
+    {
+      "date": "2024-07-17",
+      "holiday": "Muharram",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": false
+    },
+    {
+      "date": "2024-08-15",
+      "holiday": "Independence Day",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": true
+    },
+    {
+      "date": "2024-10-02",
+      "holiday": "Mahatma Gandhi Jayanti",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": true
+    },
+    {
+      "date": "2024-11-01",
+      "holiday": "Diwali Laxmi Pujan",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": false
+    },
+    {
+      "date": "2024-11-15",
+      "holiday": "Gurunanak Jayanti",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": false
+    },
+    {
+      "date": "2024-12-25",
+      "holiday": "Christmas",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": true
+    },
+    {
+      "date": "2025-01-26",
+      "holiday": "Republic Day",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": true
+    },
+    {
+      "date": "2025-02-26",
+      "holiday": "Mahashivratri",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": false
+    },
+    {
+      "date": "2025-03-14",
+      "holiday": "Holi",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": false
+    },
+    {
+      "date": "2025-03-31",
+      "holiday": "Id-Ul-Fitr (Ramzan Id)",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": false
+    },
+    {
+      "date": "2025-04-10",
+      "holiday": "Mahavir Jayanti",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": false
+    },
+    {
+      "date": "2025-04-14",
+      "holiday": "Dr. Baba Saheb Ambedkar Jayanti",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": false
+    },
+    {
+      "date": "2025-04-18",
+      "holiday": "Good Friday",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": true
+    },
+    {
+      "date": "2025-05-01",
+      "holiday": "Maharashtra Day",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": false
+    },
+    {
+      "date": "2025-06-07",
+      "holiday": "Bakri Id / Eid ul-Adha",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": false
+    },
+    {
+      "date": "2025-07-06",
+      "holiday": "Muharram",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": false
+    },
+    {
+      "date": "2025-08-15",
+      "holiday": "Independence Day",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": true
+    },
+    {
+      "date": "2025-08-27",
+      "holiday": "Ganesh Chaturthi",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": false
+    },
+    {
+      "date": "2025-10-02",
+      "holiday": "Mahatma Gandhi Jayanti / Dussehra",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": true
+    },
+    {
+      "date": "2025-10-21",
+      "holiday": "Diwali Laxmi Pujan",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": false
+    },
+    {
+      "date": "2025-10-22",
+      "holiday": "Diwali Balipratipada",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": false
+    },
+    {
+      "date": "2025-11-05",
+      "holiday": "Gurunanak Jayanti",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": false
+    },
+    {
+      "date": "2025-12-25",
+      "holiday": "Christmas",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": true
+    },
+    {
+      "date": "2026-01-26",
+      "holiday": "Republic Day",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": true
+    },
+    {
+      "date": "2026-02-16",
+      "holiday": "Mahashivratri",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": false
+    },
+    {
+      "date": "2026-03-04",
+      "holiday": "Holi",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": false
+    },
+    {
+      "date": "2026-03-20",
+      "holiday": "Id-Ul-Fitr (Ramzan Id)",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": false
+    },
+    {
+      "date": "2026-04-03",
+      "holiday": "Good Friday",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": true
+    },
+    {
+      "date": "2026-04-14",
+      "holiday": "Dr. Baba Saheb Ambedkar Jayanti",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": false
+    },
+    {
+      "date": "2026-05-01",
+      "holiday": "Maharashtra Day",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": false
+    },
+    {
+      "date": "2026-05-27",
+      "holiday": "Bakri Id / Eid ul-Adha",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": false
+    },
+    {
+      "date": "2026-06-25",
+      "holiday": "Muharram",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": false
+    },
+    {
+      "date": "2026-08-15",
+      "holiday": "Independence Day",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": true
+    },
+    {
+      "date": "2026-09-14",
+      "holiday": "Ganesh Chaturthi",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": false
+    },
+    {
+      "date": "2026-10-02",
+      "holiday": "Mahatma Gandhi Jayanti",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": true
+    },
+    {
+      "date": "2026-10-20",
+      "holiday": "Dussehra",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": true
+    },
+    {
+      "date": "2026-11-08",
+      "holiday": "Diwali Laxmi Pujan",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": false
+    },
+    {
+      "date": "2026-11-10",
+      "holiday": "Diwali Balipratipada",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": false
+    },
+    {
+      "date": "2026-11-24",
+      "holiday": "Gurunanak Jayanti",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": false
+    },
+    {
+      "date": "2026-12-25",
+      "holiday": "Christmas",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": true
+    },
+    {
+      "date": "2027-01-26",
+      "holiday": "Republic Day",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": true
+    },
+    {
+      "date": "2027-03-06",
+      "holiday": "Mahashivratri",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": false
+    },
+    {
+      "date": "2027-03-23",
+      "holiday": "Holi",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": false
+    },
+    {
+      "date": "2027-03-26",
+      "holiday": "Good Friday",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": true
+    },
+    {
+      "date": "2027-04-14",
+      "holiday": "Dr. Baba Saheb Ambedkar Jayanti",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": false
+    },
+    {
+      "date": "2027-05-01",
+      "holiday": "Maharashtra Day",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": false
+    },
+    {
+      "date": "2027-08-15",
+      "holiday": "Independence Day",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": true
+    },
+    {
+      "date": "2027-10-02",
+      "holiday": "Mahatma Gandhi Jayanti",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": true
+    },
+    {
+      "date": "2027-10-09",
+      "holiday": "Dussehra",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": true
+    },
+    {
+      "date": "2027-10-29",
+      "holiday": "Diwali Laxmi Pujan",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": false
+    },
+    {
+      "date": "2027-12-25",
+      "holiday": "Christmas",
+      "nse": true,
+      "mcx_morning": true,
+      "mcx_evening": true
+    }
+  ]
+}
